@@ -5,6 +5,7 @@ import 'package:macless_haystack/accessory/accessory_icon.dart';
 import 'package:macless_haystack/accessory/accessory_model.dart';
 import 'package:macless_haystack/accessory/accessory_registry.dart';
 import 'package:macless_haystack/location/location_model.dart';
+import 'package:macless_haystack/map/timeout_tile_provider.dart';
 import 'package:provider/provider.dart';
 
 class AccessoryMap extends StatefulWidget {
@@ -112,7 +113,7 @@ class _AccessoryMapState extends State<AccessoryMap> {
                     InteractiveFlag.pinchZoom)),
         children: [
           TileLayer(
-            tileProvider: NetworkTileProvider(),
+            tileProvider: NetworkTileProvider(httpClient: TimeoutHttpClient()),
             tileBuilder: (context, child, tile) {
               var isDark = (Theme.of(context).brightness == Brightness.dark);
               return isDark
