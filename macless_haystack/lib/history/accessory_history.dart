@@ -47,31 +47,16 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
 
   @override
   Widget build(BuildContext context) {
+    // Entries are sorted chronologically (oldest first, newest/current last).
     List<Pair<dynamic, dynamic>> filteredEntries = filterHistoryEntries();
-    var historyLength = filteredEntries.length;
     List<Polyline> polylines = [];
 
-    if (historyLength > 255) {
-      historyLength = 255;
-    }
-    int delta = (255 ~/ max(1, (historyLength - 1))).ceil();
-    var blue = delta;
-
-    for (int i = 0; i < filteredEntries.length - 1; i++) {
-      var entry = filteredEntries[i];
-      var nextEntry = filteredEntries[i + 1];
-      List<LatLng> points = [];
-      points.add(entry.location);
-      points.add(nextEntry.location);
-
-      if (isLineLayerVisible) {
-        polylines.add(Polyline(
-          points: points,
-          strokeWidth: 4,
-          color: Color.fromRGBO(33, 150, blue, 1),
-        ));
-      }
-      blue += min(delta.toInt(), 255);
+    if (isLineLayerVisible && filteredEntries.length > 1) {
+      polylines.add(Polyline(
+        points: filteredEntries.map((entry) => entry.location).toList(),
+        strokeWidth: 2,
+        color: Colors.white,
+      ));
     }
     // Filter for the locations after the specified cutoff date (now - number of days)
     var visibility = [isLineLayerVisible, isPointLayerVisible];
@@ -156,30 +141,63 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
                   PolylineLayer(
                     polylines: polylines,
                   ),
-                  // The markers for the historic locations
+                  // The markers for the historic locations.
+                  // First (oldest) report: red. Last (current) report: large
+                  // green. Everything in between: small yellow dots.
                   MarkerLayer(
-                    markers: filteredEntries
-                        .map((entry) => Marker(
-                              point: entry.location,
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    showPopup = true;
-                                    popupEntry = entry;
-                                  });
-                                },
-                                child: Icon(
-                                  Icons.circle,
-                                  size: isPointLayerVisible
-                                      ? calculateSize(entry)
-                                      : 0,
-                                  color: entry == popupEntry
-                                      ? Colors.red
-                                      : Theme.of(context).indicatorColor,
-                                ),
-                              ),
-                            ))
-                        .toList(),
+                    markers: filteredEntries.asMap().entries.map((indexed) {
+                      var i = indexed.key;
+                      var entry = indexed.value;
+                      var isFirst = i == 0;
+                      var isLast = i == filteredEntries.length - 1;
+                      var isSelected = entry == popupEntry;
+
+                      Color color;
+                      double size;
+                      if (isLast) {
+                        color = Colors.green;
+                        size = 22;
+                      } else if (isFirst) {
+                        color = Colors.red;
+                        size = 16;
+                      } else {
+                        color = Colors.yellow;
+                        size = 8;
+                      }
+
+                      return Marker(
+                        point: entry.location,
+                        // Give the marker enough room to grow when selected
+                        // without shifting its anchor point.
+                        width: 34,
+                        height: 34,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              showPopup = true;
+                              popupEntry = entry;
+                            });
+                          },
+                          child: Center(
+                            child: Icon(
+                              Icons.circle,
+                              size: isPointLayerVisible
+                                  ? (isSelected ? size + 6 : size)
+                                  : 0,
+                              color: color,
+                              shadows: isSelected
+                                  ? const [
+                                      Shadow(
+                                        color: Colors.black,
+                                        blurRadius: 4,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                   // Displays the tooltip if active
                   MarkerLayer(
@@ -232,12 +250,6 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
         ),
       ),
     );
-  }
-
-  double calculateSize(Pair<dynamic, dynamic> entry) {
-    //Point gets larger every 6 hours
-    var d = (entry.end.difference(entry.start).inHours / 6).floor() + 1;
-    return min(d * 10, 40); // 4 steps is enough
   }
 
   mapReady() {
