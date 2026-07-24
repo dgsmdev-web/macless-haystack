@@ -29,6 +29,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  connectivity_plus: ^6.0.0
 
   # UI
   flutter_colorpicker: ^1.1.0
@@ -86,10 +87,10 @@ dev_dependencies:
 flutter_icons:
   android: true
   ios: false
-  image_path: "assets/OpenHaystackIcon.png"
+  image_path: "assets/AGFindIcon.png"
   web:
     generate: true
-    image_path: "assets/OpenHaystackIcon.png"
+    image_path: "assets/AGFindIcon.png"
     background_color: "#0175C2"
     theme_color: "#0175C2"
 
