@@ -5,6 +5,7 @@ import 'package:macless_haystack/accessory/accessory_model.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:macless_haystack/history/days_selection_slider.dart';
 import 'package:macless_haystack/history/location_popup.dart';
+import 'package:macless_haystack/map/timeout_tile_provider.dart';
 
 import 'dart:math';
 
@@ -102,7 +103,8 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
                 ),
                 children: [
                   TileLayer(
-                      tileProvider: NetworkTileProvider(),
+                      tileProvider:
+                          NetworkTileProvider(httpClient: TimeoutHttpClient()),
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'de.dchristl.headlesshaystack',
