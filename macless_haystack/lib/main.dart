@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => LocationModel()),
       ],
       child: MaterialApp(
-        title: 'Macless Haystack',
+        title: 'AG Find',
         theme: ThemeData(primarySwatch: Colors.blue),
         darkTheme: ThemeData.dark(),
         home: const AppLayout(),
@@ -60,7 +60,7 @@ class _AppLayoutState extends State<AppLayout> {
   @override
   void didChangeDependencies() {
     // Precache logo for faster load times (e.g. on the splash screen)
-    precacheImage(const AssetImage('assets/OpenHaystackIcon.png'), context);
+    precacheImage(const AssetImage('assets/AGFindIcon.png'), context);
     super.didChangeDependencies();
   }
 
