@@ -66,6 +66,13 @@ android {
         }
     }
     namespace 'de.dchristl.headlesshaystack'
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def buildTypeName = variant.buildType.name
+            outputFileName = "AGFind-${buildTypeName}.apk"
+        }
+    }
 }
 
 flutter {
