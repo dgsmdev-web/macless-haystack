@@ -97,6 +97,17 @@ class ItemExportMenu extends StatelessWidget {
                     }
                   },
                 ),
+                ListTile(
+                  title: const Text('Export History (KML for Google Maps)'),
+                  subtitle: const Text(
+                      'All recorded locations as a track, viewable in Google Maps/Earth'),
+                  onTap: () async {
+                    await _exportHistoryAsKML(accessory);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
               ],
             ),
           );
@@ -161,6 +172,96 @@ class ItemExportMenu extends StatelessWidget {
         subject: filename,
       );
     }
+  }
+
+  /// Export the full location history of [accessory] as a KML track file,
+  /// viewable in Google Maps (My Maps import), Google Earth, or any other
+  /// app/tool that supports the KML format.
+  ///
+  /// Includes both a single connected line (the track, in chronological
+  /// order) and an individual placemark per recorded point with its
+  /// timestamp, so both the overall path and individual stops can be
+  /// inspected.
+  Future<void> _exportHistoryAsKML(Accessory accessory) async {
+    var history = accessory.getSortedLocationHistory();
+    var safeName =
+        accessory.name.replaceAll(RegExp(r'[^A-Za-z0-9_\-]'), '_');
+    final filename = '${safeName}_history.kml';
+
+    final buffer = StringBuffer();
+    buffer.writeln('<?xml version="1.0" encoding="UTF-8"?>');
+    buffer.writeln('<kml xmlns="http://www.opengis.net/kml/2.2">');
+    buffer.writeln('  <Document>');
+    buffer.writeln('    <name>${_xmlEscape(accessory.name)}</name>');
+    buffer.writeln('    <Style id="trackLine">');
+    buffer.writeln('      <LineStyle><color>ff0000ff</color><width>4</width></LineStyle>');
+    buffer.writeln('    </Style>');
+
+    if (history.length > 1) {
+      buffer.writeln('    <Placemark>');
+      buffer.writeln(
+          '      <name>${_xmlEscape(accessory.name)} track</name>');
+      buffer.writeln('      <styleUrl>#trackLine</styleUrl>');
+      buffer.writeln('      <LineString>');
+      buffer.writeln('        <tessellate>1</tessellate>');
+      buffer.writeln('        <coordinates>');
+      for (var entry in history) {
+        buffer.writeln(
+            '          ${entry.location.longitude},${entry.location.latitude},0');
+      }
+      buffer.writeln('        </coordinates>');
+      buffer.writeln('      </LineString>');
+      buffer.writeln('    </Placemark>');
+    }
+
+    for (var entry in history) {
+      buffer.writeln('    <Placemark>');
+      buffer.writeln('      <name>${_xmlEscape(entry.start.toString())}</name>');
+      buffer.writeln(
+          '      <description>${_xmlEscape('${entry.start} - ${entry.end}')}</description>');
+      buffer.writeln('      <Point>');
+      buffer.writeln(
+          '        <coordinates>${entry.location.longitude},${entry.location.latitude},0</coordinates>');
+      buffer.writeln('      </Point>');
+      buffer.writeln('    </Placemark>');
+    }
+
+    buffer.writeln('  </Document>');
+    buffer.writeln('</kml>');
+    final kmlContent = buffer.toString();
+
+    if (kIsWeb) {
+      final blob =
+          html.Blob([kmlContent], 'application/vnd.google-earth.kml+xml', 'native');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      html.AnchorElement(href: url)
+        ..setAttribute('download', filename)
+        ..click();
+
+      html.Url.revokeObjectUrl(url);
+    } else {
+      Directory tempDir = await getTemporaryDirectory();
+      String path = tempDir.path;
+
+      File file = File('$path/$filename');
+      await file.writeAsString(kmlContent);
+
+      Share.shareXFiles(
+        [XFile(file.path)],
+        subject: filename,
+      );
+    }
+  }
+
+  /// Escapes XML-sensitive characters for safe inclusion in the KML file.
+  String _xmlEscape(String input) {
+    return input
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
   }
 
   /// Show an explanation how the different key types are used.
