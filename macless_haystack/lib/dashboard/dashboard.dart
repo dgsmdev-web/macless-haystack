@@ -1,4 +1,6 @@
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:logger/logger.dart';
@@ -28,7 +30,12 @@ class Dashboard extends StatefulWidget {
   }
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
+  /// Interval for automatic background refresh of location reports.
+  static const Duration _autoRefreshInterval = Duration(minutes: 10);
+
+  Timer? _autoRefreshTimer;
+
   /// A list of the tabs displayed in the bottom tab bar.
   late final List<Map<String, dynamic>> _tabs = [
     {
@@ -57,6 +64,7 @@ class _DashboardState extends State<Dashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     // Initialize models and preferences
     var userPreferences = Provider.of<UserPreferences>(context, listen: false);
@@ -72,6 +80,42 @@ class _DashboardState extends State<Dashboard> {
         defaultValue: true)!) {
       loadLocationUpdates(null);
     }
+
+    _startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopAutoRefresh();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Timer.periodic keeps firing while the Dart isolate is alive, but there
+    // is no point in hitting the network while the app is not visible.
+    // Pause while backgrounded, resume (and refresh once immediately) when
+    // the app comes back to the foreground.
+    if (state == AppLifecycleState.resumed) {
+      _startAutoRefresh();
+      loadLocationUpdates(null, silent: true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _stopAutoRefresh();
+    }
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (timer) {
+      loadLocationUpdates(null, silent: true);
+    });
+  }
+
+  void _stopAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
   }
 
   var logger = Logger(
@@ -79,7 +123,12 @@ class _DashboardState extends State<Dashboard> {
   );
 
   /// Fetch location updates for all accessories.
-  Future<void> loadLocationUpdates(Accessory? accessory) async {
+  ///
+  /// If [silent] is true (used by the automatic background refresh), no
+  /// snackbar is shown on success so the user isn't interrupted every
+  /// 10 minutes. Errors are still logged either way.
+  Future<void> loadLocationUpdates(Accessory? accessory,
+      {bool silent = false}) async {
     var accessoryRegistry =
         Provider.of<AccessoryRegistry>(context, listen: false);
     var inactive = 0;
@@ -93,7 +142,7 @@ class _DashboardState extends State<Dashboard> {
     try {
       var count = await accessoryRegistry
           .loadLocationReports(accessories.where((a) => a.isActive));
-      if (mounted && accessories.isNotEmpty) {
+      if (!silent && mounted && accessories.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Theme.of(context).colorScheme.primary,
@@ -108,7 +157,7 @@ class _DashboardState extends State<Dashboard> {
       }
     } catch (e, stacktrace) {
       logger.e('Error on fetching', error: e, stackTrace: stacktrace);
-      if (mounted) {
+      if (!silent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Theme.of(context).colorScheme.error,
