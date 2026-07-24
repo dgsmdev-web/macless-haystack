@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:macless_haystack/location/location_model.dart';
 import 'package:macless_haystack/preferences/user_preferences_model.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PreferencesPage extends StatefulWidget {
   /// Displays this preferences page with information about the app.
@@ -120,9 +121,12 @@ class _PreferencesPageState extends State<PreferencesPage> {
               },
             )),
         child: const Text('About'),
-        onPressed: () => showAboutDialog(
-              context: context,
-            ));
+        onPressed: () async {
+          final uri = Uri.parse('https://www.aggroupbg.com/');
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        });
   }
 
   getFetchOnStartupTile() {
