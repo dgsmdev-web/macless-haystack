@@ -19,7 +19,7 @@ class Splashscreen extends StatelessWidget {
           constraints: BoxConstraints(maxWidth: maxSize, maxHeight: maxSize),
           child: const Image(
             width: 1800,
-            image: AssetImage('assets/OpenHaystackIcon.png')),
+            image: AssetImage('assets/AGFindIcon.png')),
         ),
       ),
     );
