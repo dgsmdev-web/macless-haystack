@@ -1,0 +1,39 @@
+name: Build Web only
+
+on: [push]
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          cache: true
+          channel: stable
+
+      - name: Get dependencies
+        working-directory: ./macless_haystack
+        run: flutter pub get
+
+      - name: Build Web
+        working-directory: ./macless_haystack
+        run: flutter build web --release
+
+      - name: Zip web build
+        working-directory: ./macless_haystack/build/web
+        run: zip -r ../../../AGFind-web.zip .
+
+      - name: Upload Web bundle
+        uses: actions/upload-artifact@v6
+        with:
+          name: AGFind-web
+          path: ./AGFind-web.zip
