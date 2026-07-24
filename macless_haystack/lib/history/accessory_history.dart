@@ -50,14 +50,28 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
   Widget build(BuildContext context) {
     // Entries are sorted chronologically (oldest first, newest/current last).
     List<Pair<dynamic, dynamic>> filteredEntries = filterHistoryEntries();
+    var historyLength = filteredEntries.length;
     List<Polyline> polylines = [];
 
-    if (isLineLayerVisible && filteredEntries.length > 1) {
-      polylines.add(Polyline(
-        points: filteredEntries.map((entry) => entry.location).toList(),
-        strokeWidth: 2,
-        color: Colors.white,
-      ));
+    if (historyLength > 255) {
+      historyLength = 255;
+    }
+    int delta = (255 ~/ max(1, (historyLength - 1))).ceil();
+    var blue = delta;
+
+    if (isLineLayerVisible) {
+      for (int i = 0; i < filteredEntries.length - 1; i++) {
+        var entry = filteredEntries[i];
+        var nextEntry = filteredEntries[i + 1];
+        List<LatLng> points = [entry.location, nextEntry.location];
+
+        polylines.add(Polyline(
+          points: points,
+          strokeWidth: 2,
+          color: Color.fromRGBO(33, 150, blue, 1),
+        ));
+        blue += min(delta.toInt(), 255);
+      }
     }
     // Filter for the locations after the specified cutoff date (now - number of days)
     var visibility = [isLineLayerVisible, isPointLayerVisible];
