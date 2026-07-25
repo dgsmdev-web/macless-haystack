@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:macless_haystack/accessory/accessory_dto.dart';
 import 'package:macless_haystack/accessory/accessory_model.dart';
+import 'package:macless_haystack/accessory/accessory_registry.dart';
 import 'package:macless_haystack/item_management/kml_export.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -47,9 +49,10 @@ class ItemExportMenu extends StatelessWidget {
                   },
                 ),
                 ListTile(
-                  title: const Text('Export History (KML for Google Maps)'),
+                  title:
+                      const Text('Export Full History (KML for Google Maps)'),
                   subtitle: const Text(
-                      'All recorded locations as a track, viewable in Google Maps/Earth'),
+                      'Every recorded location since this tag was added, as a track viewable in Google Maps/Earth'),
                   onTap: () async {
                     await exportHistoryAsKML(
                         accessory.name, accessory.getSortedLocationHistory());
@@ -58,10 +61,61 @@ class ItemExportMenu extends StatelessWidget {
                     }
                   },
                 ),
+                ListTile(
+                  title: const Text(
+                    'Delete All History',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  subtitle: const Text(
+                      'Permanently erases all recorded location points for this tag — cannot be undone'),
+                  onTap: () async {
+                    Navigator.pop(context); // close the export sheet first
+                    await _confirmAndDeleteHistory(context, accessory);
+                  },
+                ),
               ],
             ),
           );
         });
+  }
+
+  /// Shows a confirmation dialog before permanently wiping [accessory]'s
+  /// location history. Only proceeds if the user explicitly confirms.
+  Future<void> _confirmAndDeleteHistory(
+      BuildContext context, Accessory accessory) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete All History?'),
+          content: Text(
+              'This will permanently delete all recorded location history for "${accessory.name}". '
+              'The current known location and battery status are kept — only the history trail is erased. '
+              'This cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && context.mounted) {
+      await Provider.of<AccessoryRegistry>(context, listen: false)
+          .clearHistory(accessory);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('History deleted for "${accessory.name}".')),
+        );
+      }
+    }
   }
 
   /// Export the serialized [accessories] as a JSON file.
