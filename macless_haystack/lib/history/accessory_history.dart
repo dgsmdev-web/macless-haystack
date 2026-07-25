@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:macless_haystack/accessory/accessory_model.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:macless_haystack/history/days_selection_slider.dart';
+import 'package:macless_haystack/history/day_selection_checkboxes.dart';
 import 'package:macless_haystack/history/location_popup.dart';
+import 'package:macless_haystack/item_management/kml_export.dart';
 import 'package:macless_haystack/map/connectivity_aware_tile_layer.dart';
 
 import 'dart:math';
@@ -32,7 +34,8 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
   bool showPopup = false;
   Pair<dynamic, dynamic>? popupEntry;
 
-  int numberOfDays = 7;
+  int maxDayOffset = 6;
+  Set<int> selectedDayOffsets = {};
   bool isLineLayerVisible = true;
   bool isPointLayerVisible = true;
 
@@ -42,8 +45,12 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
     _mapController = MapController();
 
     DateTime latest = widget.accessory.latestHistoryEntry();
-    numberOfDays =
-        min(DateTime.now().difference(latest).inDays + 1, numberOfDays);
+    var daysAvailable =
+        min(DateTime.now().difference(latest).inDays + 1, 7);
+    maxDayOffset = max(0, daysAvailable - 1);
+    // By default show every available day at once (same overall view as
+    // before), the checkboxes let the user narrow this down afterwards.
+    selectedDayOffsets = Set<int>.from(List.generate(maxDayOffset + 1, (i) => i));
   }
 
   @override
@@ -80,6 +87,21 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
             child: Text(
               "${widget.accessory.name} (${filteredEntries.length} history reports)",
             )),
+        actions: [
+          IconButton(
+            tooltip: 'Export selected days (KML)',
+            icon: const Icon(Icons.share),
+            onPressed: filteredEntries.isEmpty
+                ? null
+                : () async {
+                    await exportHistoryAsKML(
+                      widget.accessory.name,
+                      filteredEntries,
+                      nameSuffix: _kmlSuffixForSelection(),
+                    );
+                  },
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -241,13 +263,14 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
             Flexible(
               flex: 1,
               fit: FlexFit.tight,
-              child: DaysSelectionSlider(
-                numberOfDays: numberOfDays.toDouble(),
-                onChanged: (double newValue) {
+              child: DaySelectionCheckboxes(
+                selectedDayOffsets: selectedDayOffsets,
+                maxDayOffset: maxDayOffset,
+                onChanged: (Set<int> newSelection) {
                   setState(() {
                     showPopup = false;
                     popupEntry = null;
-                    numberOfDays = newValue.toInt();
+                    selectedDayOffsets = newSelection;
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       mapReady();
                     });
@@ -278,16 +301,46 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
   }
 
   List<Pair<dynamic, dynamic>> filterHistoryEntries() {
-    var now = DateTime.now();
+    var today = DateTime.now();
+    var todayDateOnly = DateTime(today.year, today.month, today.day);
+
+    // Precompute the actual calendar dates the selected offsets refer to,
+    // so each entry only needs one comparison per selected day.
+    var selectedDates = selectedDayOffsets
+        .map((offset) => todayDateOnly.subtract(Duration(days: offset)))
+        .toSet();
+
     var filteredEntries = widget.accessory
         .getSortedLocationHistory()
-        .where(
-          (element) => element.end.isAfter(
-            now.subtract(Duration(days: numberOfDays.round())),
-          ),
-        )
+        .where((element) {
+          var entryDate =
+              DateTime(element.end.year, element.end.month, element.end.day);
+          return selectedDates.contains(entryDate);
+        })
         .toList();
     return filteredEntries;
+  }
+
+  /// Builds a filename suffix describing which days are currently
+  /// selected, so an export of a single isolated day is clearly labeled
+  /// (e.g. "2026-07-22"), while exporting everything keeps the plain,
+  /// unsuffixed filename as before.
+  String? _kmlSuffixForSelection() {
+    var allDays = Set<int>.from(List.generate(maxDayOffset + 1, (i) => i));
+    if (selectedDayOffsets.length == allDays.length &&
+        selectedDayOffsets.containsAll(allDays)) {
+      return null; // everything selected — no special suffix needed
+    }
+    var today = DateTime.now();
+    var dateFormat = DateFormat('yyyy-MM-dd');
+    var sortedOffsets = selectedDayOffsets.toList()..sort();
+    var dates = sortedOffsets
+        .map((offset) => dateFormat.format(today.subtract(Duration(days: offset))))
+        .toList();
+    if (dates.length <= 3) {
+      return dates.join('_');
+    }
+    return '${dates.length}_days';
   }
 
   var logger = Logger(
