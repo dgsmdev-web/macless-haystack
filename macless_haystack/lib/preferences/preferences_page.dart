@@ -77,7 +77,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
     return TextInputSettingsTile(
       initialValue: 'http://localhost:6176',
       settingKey: endpointUrl,
-      title: 'Url to macless haystack endpoint',
+      title: 'Url to endpoint',
       validator: (String? url) {
         if (url != null &&
             url.startsWith(RegExp('http[s]?://', caseSensitive: false))) {
@@ -120,7 +120,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
                 return Colors.indigo;
               },
             )),
-        child: const Text('About'),
+        child: const Text('About AG Find'),
         onPressed: () async {
           final uri = Uri.parse('https://www.aggroupbg.com/');
           if (await canLaunchUrl(uri)) {
