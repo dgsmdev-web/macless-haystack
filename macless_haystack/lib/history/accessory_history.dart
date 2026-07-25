@@ -34,7 +34,16 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
   bool showPopup = false;
   Pair<dynamic, dynamic>? popupEntry;
 
-  int maxDayOffset = 6;
+  /// Always exactly 7 days are offered as checkboxes — today plus the
+  /// six previous days — regardless of how much history data actually
+  /// exists yet for each of them. This is a fixed constant on purpose:
+  /// it used to be computed from the earliest stored entry, but that
+  /// meant the set of buttons shown would shrink/shift depending on
+  /// data timing, which was confusing and also touched the same
+  /// date-arithmetic that turned out to have a timezone bug (see
+  /// filterHistoryEntries below).
+  static const int maxDayOffset = 6;
+
   Set<int> selectedDayOffsets = {};
   bool isLineLayerVisible = true;
   bool isPointLayerVisible = true;
@@ -44,12 +53,8 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
     super.initState();
     _mapController = MapController();
 
-    DateTime latest = widget.accessory.latestHistoryEntry();
-    var daysAvailable =
-        min(DateTime.now().difference(latest).inDays + 1, 7);
-    maxDayOffset = max(0, daysAvailable - 1);
-    // By default show every available day at once (same overall view as
-    // before), the checkboxes let the user narrow this down afterwards.
+    // By default show every day at once (same overall view as before),
+    // the checkboxes let the user narrow this down afterwards.
     selectedDayOffsets = Set<int>.from(List.generate(maxDayOffset + 1, (i) => i));
   }
 
@@ -88,18 +93,38 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
               "${widget.accessory.name} (${filteredEntries.length} history reports)",
             )),
         actions: [
-          IconButton(
-            tooltip: 'Export selected days (KML)',
+          PopupMenuButton<String>(
+            tooltip: 'Export history (KML)',
             icon: const Icon(Icons.share),
-            onPressed: filteredEntries.isEmpty
-                ? null
-                : () async {
-                    await exportHistoryAsKML(
-                      widget.accessory.name,
-                      filteredEntries,
-                      nameSuffix: _kmlSuffixForSelection(),
-                    );
-                  },
+            onSelected: (String choice) async {
+              if (choice == 'selected') {
+                if (filteredEntries.isEmpty) return;
+                await exportHistoryAsKML(
+                  widget.accessory.name,
+                  filteredEntries,
+                  nameSuffix: _kmlSuffixForSelection(),
+                );
+              } else if (choice == 'all') {
+                var fullHistory = widget.accessory.getSortedLocationHistory();
+                if (fullHistory.isEmpty) return;
+                await exportHistoryAsKML(
+                  widget.accessory.name,
+                  fullHistory,
+                  nameSuffix: 'all_days',
+                );
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
+                value: 'selected',
+                enabled: filteredEntries.isNotEmpty,
+                child: const Text('Export checked days only'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'all',
+                child: Text('Export all available days'),
+              ),
+            ],
           ),
         ],
       ),
@@ -313,8 +338,17 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
     var filteredEntries = widget.accessory
         .getSortedLocationHistory()
         .where((element) {
+          // IMPORTANT: normalize to local time first. If `element.end`
+          // happens to be a UTC-based DateTime (depending on how the
+          // report was originally decoded/parsed), reading .year/.month
+          // /.day directly would give the UTC calendar date instead of
+          // the local one — silently shifting entries into the wrong
+          // day bucket (or out of every bucket) whenever local time and
+          // UTC fall on different calendar days, e.g. shortly after
+          // local midnight. That looked like "reports disappearing".
+          var localEnd = element.end.toLocal();
           var entryDate =
-              DateTime(element.end.year, element.end.month, element.end.day);
+              DateTime(localEnd.year, localEnd.month, localEnd.day);
           return selectedDates.contains(entryDate);
         })
         .toList();

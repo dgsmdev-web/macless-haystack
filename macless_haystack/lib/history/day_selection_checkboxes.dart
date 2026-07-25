@@ -11,9 +11,10 @@ class DaySelectionCheckboxes extends StatelessWidget {
   /// selected/visible.
   final Set<int> selectedDayOffsets;
 
-  /// How many days back are actually available to pick from (based on
-  /// how far back the accessory's history goes), so we don't offer
-  /// days for which there could not possibly be any data.
+  /// How many days back to offer (fixed at 6, so together with today
+  /// that's always exactly 7 checkboxes) — no longer tied to how much
+  /// history data currently exists, so the set of buttons stays stable
+  /// regardless of data timing.
   final int maxDayOffset;
 
   /// Called with the full updated set whenever a day is toggled.
@@ -45,7 +46,9 @@ class DaySelectionCheckboxes extends StatelessWidget {
             alignment: WrapAlignment.center,
             spacing: 4,
             runSpacing: 0,
-            children: List.generate(maxDayOffset + 1, (offset) {
+            // Oldest day first (left), Today last (right).
+            children: List.generate(maxDayOffset + 1, (i) => maxDayOffset - i)
+                .map((offset) {
               final day = today.subtract(Duration(days: offset));
               final label = offset == 0 ? 'Today' : dateFormat.format(day);
               final selected = selectedDayOffsets.contains(offset);
@@ -63,7 +66,7 @@ class DaySelectionCheckboxes extends StatelessWidget {
                   onChanged(updated);
                 },
               );
-            }),
+            }).toList(),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
