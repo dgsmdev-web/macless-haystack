@@ -151,17 +151,12 @@ class AccessoryRegistry extends ChangeNotifier {
       Accessory key = entry.key;
       Future<List<Pair<dynamic, dynamic>>> future = entry.value;
       List<Pair<dynamic, dynamic>> result = await future;
-      var nowMinusDays = DateTime.now().subtract(const Duration(days: 7));
-      var upperDayLimit =
-          DateTime(nowMinusDays.year, nowMinusDays.month, nowMinusDays.day);
-      var filtered = result
-          .where((element) => element.end.isAfter(upperDayLimit))
-          .toList();
-      if (filtered.length != result.length) {
-        logger.i(
-            '${result.length - filtered.length} history elements have been filtered out and will be deleted due to age.');
-      }
-      historyEntriesAsJson[key.id] = filtered;
+      // Previously entries older than 7 days were discarded here on every
+      // save. That cap has been removed on purpose — the full history of
+      // each accessory is now kept indefinitely in local storage, so it
+      // can be exported in full at any time (see "Export Full History"
+      // in the accessory export menu).
+      historyEntriesAsJson[key.id] = result;
     }
     //find all accessories not in list (inactive or single item refresh)
     accessories
@@ -296,6 +291,17 @@ class AccessoryRegistry extends ChangeNotifier {
     for (int index in indicesToRemove.reversed) {
       loadedAccessories.removeAt(index);
     }
+  }
+
+  /// Clears only the recorded location history of [accessory] — unlike
+  /// [deleteData], this leaves the accessory's current known location,
+  /// battery status and publish date untouched, so it still shows up
+  /// correctly on the main map. Only the history trail (and its
+  /// persisted storage entry) is wiped.
+  Future<void> clearHistory(Accessory accessory) async {
+    accessory.locationHistory.clear();
+    await _removeHistoryEntry(accessory);
+    notifyListeners();
   }
 
   void deleteData(Accessory accessory) {
