@@ -3,10 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:provider/provider.dart';
 import 'package:macless_haystack/accessory/accessory_dto.dart';
 import 'package:macless_haystack/accessory/accessory_model.dart';
-import 'package:macless_haystack/accessory/accessory_registry.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:universal_html/html.dart' as html;
@@ -37,61 +35,11 @@ class ItemExportMenu extends StatelessWidget {
               shrinkWrap: true,
               children: [
                 ListTile(
-                  trailing: IconButton(
-                    onPressed: () {
-                      _showKeyExplanationAlert(context);
-                    },
-                    icon: const Icon(Icons.info),
-                  ),
-                ),
-                ListTile(
-                  title: const Text('Export All Accessories (JSON)'),
-                  onTap: () async {
-                    var accessories =
-                        Provider.of<AccessoryRegistry>(context, listen: false)
-                            .accessories;
-                    await _exportAccessoriesAsJSON(accessories);
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                ListTile(
                   title: const Text('Export Accessory (JSON)'),
+                  subtitle: const Text(
+                      'Share this tag with someone else so they can import it'),
                   onTap: () async {
                     await _exportAccessoriesAsJSON([accessory]);
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                ListTile(
-                  title: const Text('Export Hashed Advertisement Key (Base64)'),
-                  onTap: () async {
-                    var advertisementKey =
-                        await accessory.getHashedAdvertisementKey();
-                    Share.share(advertisementKey);
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                ListTile(
-                  title: const Text('Export Advertisement Key (Base64)'),
-                  onTap: () async {
-                    var advertisementKey =
-                        await accessory.getAdvertisementKey();
-                    Share.share(advertisementKey);
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                ListTile(
-                  title: const Text('Export Private Key (Base64)'),
-                  onTap: () async {
-                    var privateKey = await accessory.getPrivateKey();
-                    Share.share(privateKey);
                     if (context.mounted) {
                       Navigator.pop(context);
                     }
@@ -117,9 +65,12 @@ class ItemExportMenu extends StatelessWidget {
   /// Export the serialized [accessories] as a JSON file.
   ///
   /// The OpenHaystack export format is used for interoperability with
-  /// the desktop app.
+  /// the desktop app. The filename includes the accessory's own name
+  /// (sanitized) so it's clear which tag the file belongs to.
   Future<void> _exportAccessoriesAsJSON(List<Accessory> accessories) async {
-    const filename = 'accessories.json';
+    final filename = accessories.length == 1
+        ? '${_safeFilename(accessories.first.name)}.json'
+        : 'accessories.json';
     // Convert accessories to export format
     List<AccessoryDTO> exportAccessories = [];
     for (Accessory accessory in accessories) {
@@ -184,9 +135,7 @@ class ItemExportMenu extends StatelessWidget {
   /// inspected.
   Future<void> _exportHistoryAsKML(Accessory accessory) async {
     var history = accessory.getSortedLocationHistory();
-    var safeName =
-        accessory.name.replaceAll(RegExp(r'[^A-Za-z0-9_\-]'), '_');
-    final filename = '${safeName}_history.kml';
+    final filename = '${_safeFilename(accessory.name)}_history.kml';
 
     final buffer = StringBuffer();
     buffer.writeln('<?xml version="1.0" encoding="UTF-8"?>');
@@ -264,42 +213,12 @@ class ItemExportMenu extends StatelessWidget {
         .replaceAll("'", '&apos;');
   }
 
-  /// Show an explanation how the different key types are used.
-  Future<void> _showKeyExplanationAlert(BuildContext context) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Key Overview'),
-          content: const SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                Text('Private Key:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('Secret key used for location report decryption.'),
-                Text('Advertisement Key:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('Shortened public key sent out over Bluetooth.'),
-                Text('Hashed Advertisement Key:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('Used to retrieve location reports from the server'),
-                Text('Accessory:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('A file containing all information about the accessory.'),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Close'),
-              onPressed: () {
-                Navigator.of(context, rootNavigator: true).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
+  /// Turns an accessory name into a safe filename fragment — keeps
+  /// letters, digits, underscores and dashes, replaces everything else
+  /// (spaces, emoji, punctuation) with an underscore.
+  String _safeFilename(String input) {
+    var safe = input.trim().replaceAll(RegExp(r'[^A-Za-z0-9_\-]'), '_');
+    return safe.isEmpty ? 'accessory' : safe;
   }
 
   @override
