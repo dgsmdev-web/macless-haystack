@@ -189,7 +189,7 @@ class _ItemFileImportState extends State<ItemFileImport> {
         lastBatteryStatus: null,
         additionalKeys: additionalPublicKeys);
 
-    registry.addAccessory(newAccessory);
+    await registry.addAccessory(newAccessory);
     return null;
   }
 

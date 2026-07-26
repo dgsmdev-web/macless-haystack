@@ -48,7 +48,7 @@ class _AccessoryGenerationState extends State<AccessoryGeneration> {
         if (context.mounted) {
           AccessoryRegistry accessoryRegistry =
               Provider.of<AccessoryRegistry>(context, listen: false);
-          accessoryRegistry.addAccessory(newAccessory);
+          await accessoryRegistry.addAccessory(newAccessory);
         }
         return true;
       }

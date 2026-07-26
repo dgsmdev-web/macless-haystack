@@ -81,7 +81,7 @@ class _AccessoryImportState extends State<AccessoryImport> {
             return;
           }
 
-          accessoryRegistry.addAccessory(newAccessory);
+          await accessoryRegistry.addAccessory(newAccessory);
           if (context.mounted) {
             Navigator.pop(context);
           }

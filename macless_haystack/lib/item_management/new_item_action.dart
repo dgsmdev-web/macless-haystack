@@ -3,7 +3,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:macless_haystack/item_management/item_creation.dart';
 import 'package:macless_haystack/item_management/item_file_import.dart';
-import 'package:macless_haystack/item_management/item_import.dart';
 import 'dart:io';
 
 class NewKeyAction extends StatelessWidget {
@@ -12,7 +11,10 @@ class NewKeyAction extends StatelessWidget {
 
   /// Displays a floating button used to access the accessory creation menu.
   ///
-  /// A new accessory can be created or an existing one imported manually.
+  /// A new accessory can be created or an existing one imported from a
+  /// JSON file. (The old "Import Accessory" manual key-entry option was
+  /// removed on purpose — JSON file import and Create new Accessory
+  /// cover the same ground more safely.)
   const NewKeyAction({
     super.key,
     this.mini = false,
@@ -27,17 +29,6 @@ class NewKeyAction extends StatelessWidget {
             child: ListView(
               shrinkWrap: true,
               children: [
-                ListTile(
-                  title: const Text('Import Accessory'),
-                  leading: const Icon(Icons.import_export),
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const AccessoryImport()),
-                    );
-                  },
-                ),
                 ListTile(
                   title: const Text('Import from JSON File'),
                   leading: const Icon(Icons.description),
