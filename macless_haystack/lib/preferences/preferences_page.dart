@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:macless_haystack/location/location_model.dart';
+import 'package:macless_haystack/preferences/app_lock_settings_section.dart';
+import 'package:macless_haystack/preferences/backup_management_page.dart';
 import 'package:macless_haystack/preferences/user_preferences_model.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -31,6 +33,22 @@ class _PreferencesPageState extends State<PreferencesPage> {
             getUserTile(),
             getPassTile(),
             getNumberofDaysTile(),
+            const Divider(),
+            const AppLockSettingsSection(),
+            const Divider(),
+            ListTile(
+              title: const Text('Deleted accessory backups'),
+              subtitle: const Text(
+                  'Re-adding a deleted accessory restores its history automatically'),
+              leading: const Icon(Icons.history),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const BackupManagementPage()),
+                );
+              },
+            ),
             ListTile(
               title: getAbout(),
             ),
