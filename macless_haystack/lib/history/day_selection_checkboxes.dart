@@ -34,7 +34,8 @@ class DaySelectionCheckboxes extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
@@ -69,7 +70,7 @@ class DaySelectionCheckboxes extends StatelessWidget {
             }).toList(),
           ),
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               TextButton(
                 onPressed: () => onChanged(
@@ -83,6 +84,7 @@ class DaySelectionCheckboxes extends StatelessWidget {
             ],
           ),
         ],
+        ),
       ),
     );
   }
