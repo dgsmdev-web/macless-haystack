@@ -56,8 +56,35 @@ class _AccessoryImportState extends State<AccessoryImport> {
         if (context.mounted) {
           AccessoryRegistry accessoryRegistry =
               Provider.of<AccessoryRegistry>(context, listen: false);
+
+          var duplicate =
+              accessoryRegistry.findDuplicateAccessory(keyPair.hashedPublicKey);
+          if (duplicate != null) {
+            await showDialog<void>(
+              context: context,
+              builder: (BuildContext dialogContext) {
+                return AlertDialog(
+                  content: Text(
+                      'This accessory is already available under the name "${duplicate.name}".'),
+                  actions: <Widget>[
+                    TextButton(
+                      child: const Text('OK'),
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop(); // close dialog
+                        Navigator.of(context).pop(); // back to add menu
+                      },
+                    ),
+                  ],
+                );
+              },
+            );
+            return;
+          }
+
           accessoryRegistry.addAccessory(newAccessory);
-          Navigator.pop(context);
+          if (context.mounted) {
+            Navigator.pop(context);
+          }
         }
       }
     }

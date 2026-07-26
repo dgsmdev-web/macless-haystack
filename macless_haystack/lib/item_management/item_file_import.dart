@@ -90,33 +90,62 @@ class _ItemFileImportState extends State<ItemFileImport> {
 
     var registry = Provider.of<AccessoryRegistry>(context, listen: false);
 
+    var importedCount = 0;
+    var duplicateMessages = <String>[];
+
     for (var i = 0; i < accessories!.length; i++) {
       var accessoryDTO = accessories![i];
       var shouldImport = selected?[i] ?? false;
 
       if (shouldImport) {
-        _importAccessory(registry, accessoryDTO);
+        var existingName = await _importAccessory(registry, accessoryDTO);
+        if (existingName == null) {
+          importedCount++;
+        } else {
+          duplicateMessages.add(
+              '"${accessoryDTO.name}" is already available under the name "$existingName".');
+        }
       }
     }
 
-    var nrOfImports = selected?.fold<int>(
-            0,
-            (previousValue, element) =>
-                element ? previousValue + 1 : previousValue) ??
-        0;
-    if (nrOfImports > 0) {
-      var snackbar = SnackBar(
-        content: Text(
-            'Successfully imported ${nrOfImports.toString()} accessories.'),
+    if (!mounted) return;
+
+    if (duplicateMessages.isNotEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext dialogContext) {
+          return AlertDialog(
+            content: Text(duplicateMessages.join('\n\n')),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('OK'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(); // close dialog
+                  Navigator.of(context, rootNavigator: true)
+                      .pop(); // back to add menu
+                },
+              ),
+            ],
+          );
+        },
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(snackbar);
-      }
+      return;
+    }
+
+    if (importedCount > 0) {
+      var snackbar = SnackBar(
+        content:
+            Text('Successfully imported ${importedCount.toString()} accessories.'),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackbar);
     }
   }
 
-  /// Import a specific [accessory] by converting the DTO to the internal representation.
-  void _importAccessory(
+  /// Import a specific [accessory] by converting the DTO to the internal
+  /// representation. Returns `null` on success. If an accessory with the
+  /// same key is already present, does NOT import and instead returns
+  /// the existing accessory's name (instead of silently replacing it).
+  Future<String?> _importAccessory(
       AccessoryRegistry registry, AccessoryDTO accessoryDTO) async {
     Color color = Colors.grey;
     if (accessoryDTO.colorComponents.length == 4) {
@@ -141,6 +170,11 @@ class _ItemFileImportState extends State<ItemFileImport> {
 
     var keyPair = await FindMyController.importKeyPair(accessoryDTO.privateKey);
 
+    var duplicate = registry.findDuplicateAccessory(keyPair.hashedPublicKey);
+    if (duplicate != null) {
+      return duplicate.name;
+    }
+
     Accessory newAccessory = Accessory(
         datePublished: DateTime(1970),
         hashedPublicKey: keyPair.hashedPublicKey,
@@ -156,6 +190,7 @@ class _ItemFileImportState extends State<ItemFileImport> {
         additionalKeys: additionalPublicKeys);
 
     registry.addAccessory(newAccessory);
+    return null;
   }
 
   @override
