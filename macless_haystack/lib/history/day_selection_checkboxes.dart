@@ -32,74 +32,70 @@ class DaySelectionCheckboxes extends StatelessWidget {
     final today = DateTime.now();
     final dateFormat = DateFormat('EEE d MMM');
 
+    // Oldest day first, Today last, then "All" as the 8th tile —
+    // together that's exactly 8 tiles, laid out evenly as 2 rows of 4.
+    final dayOffsets =
+        List.generate(maxDayOffset + 1, (i) => maxDayOffset - i);
+    final allSelected = selectedDayOffsets.length == dayOffsets.length;
+
+    Widget buildTile({
+      required String label,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return FilterChip(
+        label: Text(label, style: const TextStyle(fontSize: 10)),
+        selected: selected,
+        onSelected: (_) => onTap(),
+      );
+    }
+
+    final tiles = <Widget>[
+      ...dayOffsets.map((offset) {
+        final day = today.subtract(Duration(days: offset));
+        final label = offset == 0 ? 'Today' : dateFormat.format(day);
+        final selected = selectedDayOffsets.contains(offset);
+        return buildTile(
+          label: label,
+          selected: selected,
+          onTap: () {
+            final updated = Set<int>.from(selectedDayOffsets);
+            if (selected) {
+              updated.remove(offset);
+            } else {
+              updated.add(offset);
+            }
+            onChanged(updated);
+          },
+        );
+      }),
+      buildTile(
+        label: 'All',
+        selected: allSelected,
+        onTap: () => onChanged(Set<int>.from(dayOffsets)),
+      ),
+    ];
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-      child: SingleChildScrollView(
-        child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
             'Which days to show?',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 2),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 3,
-            runSpacing: 0,
-            // Oldest day first (left), Today last (right).
-            children: List.generate(maxDayOffset + 1, (i) => maxDayOffset - i)
-                .map((offset) {
-              final day = today.subtract(Duration(days: offset));
-              final label = offset == 0 ? 'Today' : dateFormat.format(day);
-              final selected = selectedDayOffsets.contains(offset);
-
-              return FilterChip(
-                label: Text(label, style: const TextStyle(fontSize: 10)),
-                labelPadding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: -2),
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 0),
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                selected: selected,
-                onSelected: (bool value) {
-                  final updated = Set<int>.from(selectedDayOffsets);
-                  if (value) {
-                    updated.add(offset);
-                  } else {
-                    updated.remove(offset);
-                  }
-                  onChanged(updated);
-                },
-              );
-            }).toList(),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: () => onChanged(
-                    Set<int>.from(List.generate(maxDayOffset + 1, (i) => i))),
-                child: const Text('All', style: TextStyle(fontSize: 12)),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: () => onChanged({}),
-                child: const Text('None', style: TextStyle(fontSize: 12)),
-              ),
-            ],
+          const SizedBox(height: 4),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 4,
+            mainAxisSpacing: 4,
+            crossAxisSpacing: 4,
+            childAspectRatio: 2.2,
+            children: tiles,
           ),
         ],
-        ),
       ),
     );
   }
