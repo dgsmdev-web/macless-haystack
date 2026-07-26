@@ -30,12 +30,7 @@ class Dashboard extends StatefulWidget {
   }
 }
 
-class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
-  /// Interval for automatic background refresh of location reports.
-  static const Duration _autoRefreshInterval = Duration(minutes: 10);
-
-  Timer? _autoRefreshTimer;
-
+class _DashboardState extends State<Dashboard> {
   /// A list of the tabs displayed in the bottom tab bar.
   late final List<Map<String, dynamic>> _tabs = [
     {
@@ -64,7 +59,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
 
     // Initialize models and preferences
     var userPreferences = Provider.of<UserPreferences>(context, listen: false);
@@ -75,47 +69,19 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     if (!locationPreferenceKnown || locationAccessWanted) {
       locationModel.requestLocationUpdates();
     }
-    // Load new location reports on app start
+    // Load new location reports on app start. This — plus the manual
+    // refresh button — is now the ONLY way reports are fetched. A
+    // previous version also auto-refreshed every 10 minutes in the
+    // background, but that was removed on purpose: a request landing
+    // at an exact, unchanging interval every time the app is open is
+    // exactly the kind of predictable automated pattern that could
+    // draw unwanted attention from Apple's anti-abuse systems, versus
+    // requests that only happen when a person actually opens the app
+    // or taps refresh.
     if (Settings.getValue<bool>(fetchLocationOnStartupKey,
         defaultValue: true)!) {
       loadLocationUpdates(null);
     }
-
-    _startAutoRefresh();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _stopAutoRefresh();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Timer.periodic keeps firing while the Dart isolate is alive, but there
-    // is no point in hitting the network while the app is not visible.
-    // Pause while backgrounded, resume (and refresh once immediately) when
-    // the app comes back to the foreground.
-    if (state == AppLifecycleState.resumed) {
-      _startAutoRefresh();
-      loadLocationUpdates(null, silent: true);
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      _stopAutoRefresh();
-    }
-  }
-
-  void _startAutoRefresh() {
-    _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (timer) {
-      loadLocationUpdates(null, silent: true);
-    });
-  }
-
-  void _stopAutoRefresh() {
-    _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = null;
   }
 
   var logger = Logger(
@@ -123,10 +89,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   );
 
   /// Fetch location updates for all accessories.
-  ///
-  /// If [silent] is true (used by the automatic background refresh), no
-  /// snackbar is shown on success so the user isn't interrupted every
-  /// 10 minutes. Errors are still logged either way.
   Future<void> loadLocationUpdates(Accessory? accessory,
       {bool silent = false}) async {
     var accessoryRegistry =
@@ -210,7 +172,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   ))
               .toList(),
           currentIndex: _selectedIndex,
-          unselectedItemColor: Theme.of(context).secondaryHeaderColor,
+          // secondaryHeaderColor was used here before — it's meant for
+          // header backgrounds, not icon tint, and rendered almost
+          // invisible in light theme (see reported screenshots). A
+          // fixed mid-grey reads clearly in both light and dark theme,
+          // while staying visibly less prominent than the selected tab.
+          unselectedItemColor: Theme.of(context).brightness == Brightness.light
+              ? const Color(0xFF5F6368)
+              : const Color(0xFFB0B0B0),
           onTap: _onItemTapped,
         ),
         floatingActionButton:
