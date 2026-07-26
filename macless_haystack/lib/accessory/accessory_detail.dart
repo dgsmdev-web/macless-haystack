@@ -183,12 +183,40 @@ class _AccessoryDetailState extends State<AccessoryDetail> {
                     'Delete Accessory',
                     style: TextStyle(color: Colors.white),
                   ),
-                  onPressed: () {
+                  onPressed: () async {
+                    var confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('Delete Accessory?'),
+                        content: Text(
+                            '"${widget.accessory.name}" and its entire '
+                            'location history will be permanently deleted. '
+                            'This cannot be undone.'),
+                        actions: <Widget>[
+                          TextButton(
+                            child: const Text('Cancel'),
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(false),
+                          ),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                                foregroundColor: Colors.red),
+                            child: const Text('Delete'),
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(true),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true) return;
                     // Delete accessory
-                    var accessoryRegistry =
-                        Provider.of<AccessoryRegistry>(context, listen: false);
-                    accessoryRegistry.removeAccessory(widget.accessory);
-                    Navigator.pop(context);
+                    if (context.mounted) {
+                      var accessoryRegistry = Provider.of<AccessoryRegistry>(
+                          context,
+                          listen: false);
+                      accessoryRegistry.removeAccessory(widget.accessory);
+                      Navigator.pop(context);
+                    }
                   },
                 ),
               ),

@@ -12,9 +12,6 @@ import 'package:macless_haystack/preferences/user_preferences_model.dart';
 
 const accessoryStorageKey = 'ACCESSORIES';
 const historyStorageKey = 'HISTORY';
-const historyBackupStorageKey = 'HISTORY_BACKUP';
-const historyBackupTimestampKey = 'HISTORY_BACKUP_TS';
-const deletedAccessoriesIndexKey = 'DELETED_ACCESSORIES_INDEX';
 
 class AccessoryRegistry extends ChangeNotifier {
   var _storage = const FlutterSecureStorage();
@@ -168,98 +165,8 @@ class AccessoryRegistry extends ChangeNotifier {
       historyEntriesAsJson[a.id] = a.locationHistory;
     });
 
-    await _snapshotHistoryBackupIfDue();
-
     var historyJson = jsonEncode(historyEntriesAsJson);
     _storage.write(key: historyStorageKey, value: historyJson);
-  }
-
-  /// Copies whatever is CURRENTLY on disk under [historyStorageKey] into
-  /// a separate backup slot, but only if the last backup is more than an
-  /// hour old (or there isn't one yet). This gives a rolling "how things
-  /// looked at least ~1 hour ago" safety net — cheap (one extra slot,
-  /// refreshed at most hourly) but enough to recover from an accidental
-  /// overwrite (e.g. a bug that briefly makes an accessory's in-memory
-  /// history empty right before a save) without keeping unlimited
-  /// history versions.
-  Future<void> _snapshotHistoryBackupIfDue() async {
-    try {
-      String? lastBackupTsStr =
-          await _storage.read(key: historyBackupTimestampKey);
-      DateTime? lastBackupTs =
-          lastBackupTsStr != null ? DateTime.tryParse(lastBackupTsStr) : null;
-      var dueForBackup = lastBackupTs == null ||
-          DateTime.now().difference(lastBackupTs) > const Duration(hours: 1);
-      if (!dueForBackup) {
-        return;
-      }
-
-      String? currentHistory = await _storage.read(key: historyStorageKey);
-      if (currentHistory == null) {
-        return; // nothing saved yet, nothing to back up
-      }
-      await _storage.write(
-          key: historyBackupStorageKey, value: currentHistory);
-      await _storage.write(
-          key: historyBackupTimestampKey,
-          value: DateTime.now().toIso8601String());
-    } catch (e) {
-      logger.w('Could not create history backup snapshot: $e');
-    }
-  }
-
-  /// Merges the history stored in the rolling backup slot back into the
-  /// current accessories, WITHOUT discarding any current data — entries
-  /// already present (matched by identical start+end timestamps) are
-  /// skipped, everything else from the backup is added back in. Returns
-  /// how many location points were actually recovered (0 if the backup
-  /// is empty, missing, or already fully covered by current data).
-  Future<int> restoreHistoryFromBackup() async {
-    String? backup = await _storage.read(key: historyBackupStorageKey);
-    if (backup == null) {
-      return 0;
-    }
-
-    Map<String, dynamic> backupDecoded = jsonDecode(backup);
-    int recoveredCount = 0;
-
-    for (var accessory in _accessories) {
-      var backupEntriesRaw = backupDecoded[accessory.id];
-      if (backupEntriesRaw == null) {
-        continue;
-      }
-      List<Pair<dynamic, dynamic>> backupEntries =
-          (backupEntriesRaw as List).map((item) => Pair.fromJson(item)).toList();
-
-      var existingKeys = accessory.locationHistory
-          .map((p) => '${p.start.toIso8601String()}_${p.end.toIso8601String()}')
-          .toSet();
-
-      for (var backupEntry in backupEntries) {
-        var key =
-            '${backupEntry.start.toIso8601String()}_${backupEntry.end.toIso8601String()}';
-        if (!existingKeys.contains(key)) {
-          accessory.locationHistory.add(backupEntry);
-          existingKeys.add(key);
-          recoveredCount++;
-        }
-      }
-
-      accessory.locationHistory.sort((a, b) => a.end.compareTo(b.end));
-    }
-
-    if (recoveredCount > 0) {
-      // Persist the merged result. Bypasses the normal fetch-based
-      // _storeHistory path since we already have the final in-memory
-      // state for every accessory here.
-      Map<String, List<Pair<dynamic, dynamic>>> merged = {
-        for (var a in _accessories) a.id: a.locationHistory
-      };
-      await _storage.write(key: historyStorageKey, value: jsonEncode(merged));
-      notifyListeners();
-    }
-
-    return recoveredCount;
   }
 
   /// Stores the user's accessories in persistent storage.
@@ -289,10 +196,6 @@ class AccessoryRegistry extends ChangeNotifier {
   /// ACTIVE duplicate is never silently replaced — this method's own
   /// "replace if hashedPublicKey matches" fallback below only matters
   /// for edge cases like [editAccessory].
-  ///
-  /// If this accessory (by id) was previously deleted and its old
-  /// location history is still sitting in storage, it's automatically
-  /// merged back in here — this is the "restore on re-add" behaviour.
   Future<void> addAccessory(Accessory accessory) async {
     Accessory? foundOne;
     for (var acc in _accessories) {
@@ -305,114 +208,26 @@ class AccessoryRegistry extends ChangeNotifier {
       _accessories.remove(foundOne);
     }
 
-    await _restoreHistoryIfPreviouslyDeleted(accessory);
-
     _accessories.add(accessory);
     _storeAccessories();
     notifyListeners();
   }
 
-  /// If [accessory]'s history is still present in storage from before it
-  /// was deleted (deleting an accessory does NOT wipe its history — see
-  /// [removeAccessory]), loads it straight into [accessory] and clears
-  /// the matching "deleted" index entry. Silently does nothing if there
-  /// is nothing to restore.
-  Future<void> _restoreHistoryIfPreviouslyDeleted(Accessory accessory) async {
-    try {
-      String? history = await _storage.read(key: historyStorageKey);
-      if (history == null) return;
-      Map<String, dynamic> jsonDecoded = jsonDecode(history);
-      var existing = jsonDecoded[accessory.id];
-      if (existing != null) {
-        accessory.addLocationHistory(existing);
-      }
-      await _removeFromDeletedIndex(accessory.id);
-    } catch (e) {
-      logger.w('Could not check for previously deleted history: $e');
-    }
-  }
-
-  /// Removes [accessory] from this registry. The accessory's location
-  /// history is intentionally NOT deleted from storage — it's kept as a
-  /// backup and automatically restored if this same accessory (by id)
-  /// is ever added again (see [addAccessory]). A small entry is added
-  /// to the "deleted accessories" index so it can be reviewed/purged
-  /// permanently later (see [getDeletedAccessoriesIndex] and
-  /// [purgeDeletedAccessoryHistory]).
+  /// Removes [accessory] from this registry — permanently, including its
+  /// location history. There is no backup/undo: the UI is expected to
+  /// have already asked the user to confirm this (see
+  /// AccessoryDetail's "Delete Accessory" button), warning that the
+  /// accessory AND its history will be erased for good.
   void removeAccessory(Accessory accessory) {
     _accessories.remove(accessory);
     accessory.getHashedPublicKey().then((publicKey) {
       _storage.delete(key: publicKey);
     });
 
-    _addToDeletedIndex(accessory);
+    _removeHistoryEntry(accessory);
 
     _storeAccessories();
     notifyListeners();
-  }
-
-  Future<void> _addToDeletedIndex(Accessory accessory) async {
-    try {
-      String? raw = await _storage.read(key: deletedAccessoriesIndexKey);
-      List<dynamic> index = raw != null ? jsonDecode(raw) : [];
-      index.removeWhere((e) => e['id'] == accessory.id);
-      index.add({
-        'id': accessory.id,
-        'name': accessory.name,
-        'deletedAt': DateTime.now().toIso8601String(),
-      });
-      await _storage.write(
-          key: deletedAccessoriesIndexKey, value: jsonEncode(index));
-    } catch (e) {
-      logger.w('Could not update deleted-accessories index: $e');
-    }
-  }
-
-  Future<void> _removeFromDeletedIndex(String id) async {
-    try {
-      String? raw = await _storage.read(key: deletedAccessoriesIndexKey);
-      if (raw == null) return;
-      List<dynamic> index = jsonDecode(raw);
-      index.removeWhere((e) => e['id'] == id);
-      await _storage.write(
-          key: deletedAccessoriesIndexKey, value: jsonEncode(index));
-    } catch (e) {
-      logger.w('Could not update deleted-accessories index: $e');
-    }
-  }
-
-  /// Returns the list of deleted accessories that still have recoverable
-  /// history sitting in storage — each entry has 'id', 'name' (as it was
-  /// when deleted) and 'deletedAt'. For display in a management screen.
-  Future<List<Map<String, dynamic>>> getDeletedAccessoriesIndex() async {
-    try {
-      String? raw = await _storage.read(key: deletedAccessoriesIndexKey);
-      if (raw == null) return [];
-      List<dynamic> index = jsonDecode(raw);
-      return index.cast<Map<String, dynamic>>();
-    } catch (e) {
-      logger.w('Could not read deleted-accessories index: $e');
-      return [];
-    }
-  }
-
-  /// Permanently erases the stored location history for a deleted
-  /// accessory (by [id]) and removes it from the deleted-accessories
-  /// index. This is a one-way action — after this, re-adding that
-  /// accessory will no longer auto-restore its old history.
-  Future<void> purgeDeletedAccessoryHistory(String id) async {
-    try {
-      String? history = await _storage.read(key: historyStorageKey);
-      if (history != null) {
-        Map<String, dynamic> jsonDecoded = jsonDecode(history);
-        jsonDecoded.remove(id);
-        await _storage.write(
-            key: historyStorageKey, value: jsonEncode(jsonDecoded));
-      }
-    } catch (e) {
-      logger.w('Could not purge history for $id: $e');
-    }
-    await _removeFromDeletedIndex(id);
   }
 
   Future<List<Pair<dynamic, dynamic>>> fillLocationHistory(
