@@ -45,6 +45,9 @@ dependencies:
   # latest version of pointy castle for crypto functions
   pointycastle: ^4.0.0
 
+  # Biometric / app-lock authentication
+  local_auth: ^2.3.0
+
   # State Management
   provider: ^6.1.5+1
 
