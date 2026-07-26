@@ -72,7 +72,8 @@ class DaySelectionCheckboxes extends StatelessWidget {
       buildTile(
         label: 'All',
         selected: allSelected,
-        onTap: () => onChanged(Set<int>.from(dayOffsets)),
+        onTap: () => onChanged(
+            allSelected ? <int>{} : Set<int>.from(dayOffsets)),
       ),
     ];
 
