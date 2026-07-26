@@ -3,9 +3,13 @@ package de.dchristl.headlesshaystack
 import android.os.Build
 import android.os.Bundle
 import androidx.core.view.WindowCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity: FlutterActivity() {
+// FlutterFragmentActivity (not the plain FlutterActivity this project
+// used before) is required by the local_auth plugin — it shows the
+// biometric/fingerprint prompt as a Fragment, which needs a
+// FragmentActivity host to attach to.
+class MainActivity: FlutterFragmentActivity() {
 
       override fun onCreate(savedInstanceState: Bundle?) {
     // Aligns the Flutter view vertically with the window.
@@ -20,3 +24,4 @@ class MainActivity: FlutterActivity() {
     super.onCreate(savedInstanceState)
   }
 }
+
