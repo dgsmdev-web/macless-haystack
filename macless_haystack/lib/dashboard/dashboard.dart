@@ -30,7 +30,7 @@ class Dashboard extends StatefulWidget {
   }
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   /// A list of the tabs displayed in the bottom tab bar.
   late final List<Map<String, dynamic>> _tabs = [
     {
@@ -59,6 +59,7 @@ class _DashboardState extends State<Dashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     // Initialize models and preferences
     var userPreferences = Provider.of<UserPreferences>(context, listen: false);
@@ -69,18 +70,38 @@ class _DashboardState extends State<Dashboard> {
     if (!locationPreferenceKnown || locationAccessWanted) {
       locationModel.requestLocationUpdates();
     }
-    // Load new location reports on app start. This — plus the manual
-    // refresh button — is now the ONLY way reports are fetched. A
-    // previous version also auto-refreshed every 10 minutes in the
-    // background, but that was removed on purpose: a request landing
-    // at an exact, unchanging interval every time the app is open is
-    // exactly the kind of predictable automated pattern that could
-    // draw unwanted attention from Apple's anti-abuse systems, versus
-    // requests that only happen when a person actually opens the app
-    // or taps refresh.
+    // Load new location reports on app start. There is deliberately NO
+    // periodic timer anymore (see didChangeAppLifecycleState below for
+    // why) — refreshes only happen: on a true cold start (here), when
+    // returning to the app from the background, and on the manual
+    // refresh button. All three only ever fire because a person
+    // actually did something (opened the app, switched back to it, or
+    // tapped refresh) — never on a fixed, predictable interval, which
+    // is what could look like automated/bot-like behaviour to Apple's
+    // anti-abuse systems.
     if (Settings.getValue<bool>(fetchLocationOnStartupKey,
         defaultValue: true)!) {
       loadLocationUpdates(null);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Android normally keeps the app process alive in the background
+    // when you switch away from it (Home button, another app, locking
+    // the screen) — coming back is a "resume", not a fresh process
+    // start, so initState() above does NOT run again on its own. This
+    // is the only thing that refreshes on a normal "switched back to
+    // the app" — deliberately NOT a timer, just a one-off silent fetch
+    // exactly when a person actually returns to the app.
+    if (state == AppLifecycleState.resumed) {
+      loadLocationUpdates(null, silent: true);
     }
   }
 
