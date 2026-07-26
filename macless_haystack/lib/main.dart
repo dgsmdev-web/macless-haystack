@@ -3,6 +3,8 @@ import 'package:macless_haystack/dashboard/dashboard.dart';
 import 'package:provider/provider.dart';
 import 'package:macless_haystack/accessory/accessory_registry.dart';
 import 'package:macless_haystack/location/location_model.dart';
+import 'package:macless_haystack/preferences/app_lock_model.dart';
+import 'package:macless_haystack/preferences/app_lock_screen.dart';
 import 'package:macless_haystack/preferences/user_preferences_model.dart';
 import 'package:macless_haystack/splashscreen.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -43,6 +45,9 @@ class AppLayout extends StatefulWidget {
 }
 
 class _AppLayoutState extends State<AppLayout> {
+  bool? _appLockEnabled; // null while still checking
+  bool _unlocked = false;
+
   @override
   initState() {
     super.initState();
@@ -50,6 +55,14 @@ class _AppLayoutState extends State<AppLayout> {
     var accessoryRegistry =
         Provider.of<AccessoryRegistry>(context, listen: false);
     accessoryRegistry.loadAccessories();
+
+    AppLockModel.isEnabled().then((enabled) {
+      if (mounted) {
+        setState(() {
+          _appLockEnabled = enabled;
+        });
+      }
+    });
   }
 
   @override
@@ -68,8 +81,14 @@ class _AppLayoutState extends State<AppLayout> {
   Widget build(BuildContext context) {
     bool isInitialized = context.watch<UserPreferences>().initialized;
     bool isLoading = context.watch<AccessoryRegistry>().loading;
-    if (!isInitialized || isLoading) {
+    if (!isInitialized || isLoading || _appLockEnabled == null) {
       return const Splashscreen();
+    }
+
+    if (_appLockEnabled == true && !_unlocked) {
+      return AppLockScreen(
+        onUnlocked: () => setState(() => _unlocked = true),
+      );
     }
 
     return const Dashboard();
