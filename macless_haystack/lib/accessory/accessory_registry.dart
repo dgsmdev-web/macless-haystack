@@ -176,6 +176,22 @@ class AccessoryRegistry extends ChangeNotifier {
   }
 
   /// Adds a new accessory to this registry.
+  /// Returns the existing accessory with the same [hashedPublicKey], if
+  /// any — used to warn the user (with the existing accessory's name)
+  /// before importing the same accessory a second time under a
+  /// different name. Re-importing used to silently swap the old
+  /// accessory object for a new one, which could leave stale UI state
+  /// pointing at the now-removed object, and reset its in-memory
+  /// history to empty until the next full app restart.
+  Accessory? findDuplicateAccessory(String hashedPublicKey) {
+    for (var a in _accessories) {
+      if (a.hashedPublicKey == hashedPublicKey) {
+        return a;
+      }
+    }
+    return null;
+  }
+
   void addAccessory(Accessory accessory) {
     Accessory? foundOne;
     for (var acc in _accessories) {
