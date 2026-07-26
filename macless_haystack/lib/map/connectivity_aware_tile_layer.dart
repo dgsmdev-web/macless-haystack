@@ -31,9 +31,25 @@ class _ConnectivityAwareTileLayerState
   bool _hasConnection = true;
   StreamSubscription<List<ConnectivityResult>>? _subscription;
 
+  // Created ONCE for the lifetime of this widget, not on every build().
+  // Previously a brand new TimeoutHttpClient (wrapping a brand new
+  // dart:io HttpClient) was created inside build() every single time
+  // this widget rebuilt — which can happen many times in quick
+  // succession during a single zoom/pan gesture. None of those old
+  // clients were ever closed, so they piled up as leaked, still-pending
+  // connections, each independently waiting out its own timeout before
+  // failing. With enough of them stacked up during a zoom, the visible
+  // result was exactly the freeze being reported — regardless of how
+  // good the actual network connection was, since the real problem was
+  // resource pile-up, not connectivity.
+  late final TimeoutHttpClient _httpClient;
+  late final NetworkTileProvider _tileProvider;
+
   @override
   void initState() {
     super.initState();
+    _httpClient = TimeoutHttpClient();
+    _tileProvider = NetworkTileProvider(httpClient: _httpClient);
     _checkInitial();
     _subscription = Connectivity().onConnectivityChanged.listen((results) {
       _updateState(results);
@@ -57,6 +73,7 @@ class _ConnectivityAwareTileLayerState
   @override
   void dispose() {
     _subscription?.cancel();
+    _httpClient.close();
     super.dispose();
   }
 
@@ -77,7 +94,7 @@ class _ConnectivityAwareTileLayerState
       );
     }
     return TileLayer(
-      tileProvider: NetworkTileProvider(httpClient: TimeoutHttpClient()),
+      tileProvider: _tileProvider,
       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       userAgentPackageName: 'de.dchristl.headlesshaystack',
       tileBuilder: widget.tileBuilder,
