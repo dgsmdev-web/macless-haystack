@@ -33,19 +33,19 @@ class DaySelectionCheckboxes extends StatelessWidget {
     final dateFormat = DateFormat('EEE d MMM');
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
       child: SingleChildScrollView(
         child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
             'Which days to show?',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Wrap(
             alignment: WrapAlignment.center,
-            spacing: 4,
+            spacing: 3,
             runSpacing: 0,
             // Oldest day first (left), Today last (right).
             children: List.generate(maxDayOffset + 1, (i) => maxDayOffset - i)
@@ -55,7 +55,12 @@ class DaySelectionCheckboxes extends StatelessWidget {
               final selected = selectedDayOffsets.contains(offset);
 
               return FilterChip(
-                label: Text(label, style: const TextStyle(fontSize: 12)),
+                label: Text(label, style: const TextStyle(fontSize: 10)),
+                labelPadding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: -2),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 0),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 selected: selected,
                 onSelected: (bool value) {
                   final updated = Set<int>.from(selectedDayOffsets);
@@ -73,13 +78,23 @@ class DaySelectionCheckboxes extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
                 onPressed: () => onChanged(
                     Set<int>.from(List.generate(maxDayOffset + 1, (i) => i))),
-                child: const Text('All'),
+                child: const Text('All', style: TextStyle(fontSize: 12)),
               ),
               TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
                 onPressed: () => onChanged({}),
-                child: const Text('None'),
+                child: const Text('None', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
