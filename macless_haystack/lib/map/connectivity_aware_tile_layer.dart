@@ -15,11 +15,19 @@ import 'package:macless_haystack/map/timeout_tile_provider.dart';
 /// can't catch, such as being connected to Wi-Fi/mobile data that has no
 /// actual working internet behind it (connectivity_plus only reports the
 /// network *interface* state, not real internet reachability).
+///
+/// Dark-theme color inversion, if needed, should be applied by the
+/// CALLER wrapping this whole widget in a single [ColorFiltered] — not
+/// passed in as a per-tile `tileBuilder`. Filtering every individual
+/// tile separately (as this used to do) meant the GPU had to run the
+/// color-matrix shader once per visible tile — during a fast pinch-zoom
+/// or pan, dozens of tiles can be on screen/in transition at once,
+/// which was heavy enough to cause visible jank/freezes on real
+/// devices. Filtering the layer once, as a whole, costs the same
+/// operation exactly once per frame regardless of how many individual
+/// tiles make it up.
 class ConnectivityAwareTileLayer extends StatefulWidget {
-  final Widget Function(BuildContext context, Widget child, TileImage tile)?
-      tileBuilder;
-
-  const ConnectivityAwareTileLayer({super.key, this.tileBuilder});
+  const ConnectivityAwareTileLayer({super.key});
 
   @override
   State<ConnectivityAwareTileLayer> createState() =>
@@ -97,7 +105,6 @@ class _ConnectivityAwareTileLayerState
       tileProvider: _tileProvider,
       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       userAgentPackageName: 'de.dchristl.headlesshaystack',
-      tileBuilder: widget.tileBuilder,
     );
   }
 }
