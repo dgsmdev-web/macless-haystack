@@ -161,38 +161,42 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
                   },
                 ),
                 children: [
-                  ConnectivityAwareTileLayer(
-                      tileBuilder: (context, child, tile) {
-                        var isDark =
-                            (Theme.of(context).brightness == Brightness.dark);
-                        return isDark
-                            ? ColorFiltered(
-                                colorFilter: const ColorFilter.matrix([
-                                  -1,
-                                  0,
-                                  0,
-                                  0,
-                                  255,
-                                  0,
-                                  -1,
-                                  0,
-                                  0,
-                                  255,
-                                  0,
-                                  0,
-                                  -1,
-                                  0,
-                                  255,
-                                  0,
-                                  0,
-                                  0,
-                                  1,
-                                  0,
-                                ]),
-                                child: child,
-                              )
-                            : child;
-                      }),
+                  Builder(builder: (context) {
+                    var isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    const tileLayer = ConnectivityAwareTileLayer();
+                    // One color-matrix filter for the whole layer, not
+                    // one per individual tile — much cheaper to render
+                    // during a fast zoom/pan (see the doc comment on
+                    // ConnectivityAwareTileLayer for why this matters).
+                    return isDark
+                        ? const ColorFiltered(
+                            colorFilter: ColorFilter.matrix([
+                              -1,
+                              0,
+                              0,
+                              0,
+                              255,
+                              0,
+                              -1,
+                              0,
+                              0,
+                              255,
+                              0,
+                              0,
+                              -1,
+                              0,
+                              255,
+                              0,
+                              0,
+                              0,
+                              1,
+                              0,
+                            ]),
+                            child: tileLayer,
+                          )
+                        : tileLayer;
+                  }),
                   // The line connecting the locations chronologically
                   PolylineLayer(
                     polylines: polylines,
