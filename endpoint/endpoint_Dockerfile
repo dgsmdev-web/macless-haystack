@@ -1,0 +1,30 @@
+FROM python:slim
+
+ENV TERM=xterm
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y curl nano iproute2 cron
+
+# Use the endpoint code that's actually committed in THIS repository
+# (your own fork), instead of git-cloning the original author's repo
+# at build time. This is the key change: previously this Dockerfile
+# hardcoded "git remote add origin https://github.com/dchristl/..."
+# regardless of which fork it was built from.
+#
+# Assumes the build context is the endpoint/ folder itself (i.e. you
+# run `docker build` from inside macless-haystack/endpoint/, same as
+# before) — this copies everything in that folder into /app/endpoint/
+# inside the image, matching the paths used below.
+COPY . /app/endpoint/
+
+# Configure python
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r endpoint/requirements.txt
+
+# Run the server as-is, from the code baked into this image at build
+# time. No more auto git-pull from the original repo on every
+# container start (the old CMD ran ./endpoint/updateRepo first, which
+# re-pulled and merged from the original author's repo on every
+# restart — removed on purpose so this image only ever runs the code
+# you actually built and reviewed).
+CMD ["python", "-u", "endpoint/mh_endpoint.py"]
