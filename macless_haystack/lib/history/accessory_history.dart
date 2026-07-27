@@ -163,7 +163,7 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
                   Builder(builder: (context) {
                     var isDark =
                         Theme.of(context).brightness == Brightness.dark;
-                    const tileLayer = TileLayer(
+                    var tileLayer = TileLayer(
                       tileProvider: NetworkTileProvider(),
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -173,7 +173,7 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
                     // one per individual tile — much cheaper to render
                     // during a fast zoom/pan.
                     return isDark
-                        ? const ColorFiltered(
+                        ? ColorFiltered(
                             colorFilter: ColorFilter.matrix([
                               -1,
                               0,
