@@ -1,6 +1,7 @@
 name: Build APK only
 
-on: [push]
+on:
+  workflow_dispatch:
 
 jobs:
   build-apk:
@@ -28,12 +29,18 @@ jobs:
         working-directory: ./macless_haystack
         run: flutter build apk --release
 
-      # No more "Rename APK" step — it used to force the file back to a
-      # fixed "AGFind-release.apk" name, which overwrote the versioned
-      # name Gradle already produces on its own now (outputFileName in
-      # android/app/build.gradle is set to
-      # "AGFind-release-v${versionName}.apk"). Removing this step lets
-      # that versioned name survive all the way to the download.
+      # Gradle's own outputFileName renaming (in android/app/build.gradle)
+      # turned out not to work reliably with this AGP version — Google
+      # changed/deprecated the old applicationVariants API in AGP 8.x, so
+      # Flutter's default name (app-release.apk) was slipping through
+      # unchanged. Renaming it here instead, in plain bash, reading the
+      # version straight from pubspec.yaml — this doesn't depend on any
+      # Gradle plugin API and just works.
+      - name: Rename APK with version
+        working-directory: ./macless_haystack
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/AGFind-release-v${VERSION}.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v6
