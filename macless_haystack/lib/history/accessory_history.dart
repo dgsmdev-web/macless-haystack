@@ -7,7 +7,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:macless_haystack/history/day_selection_checkboxes.dart';
 import 'package:macless_haystack/history/location_popup.dart';
 import 'package:macless_haystack/item_management/kml_export.dart';
-import 'package:macless_haystack/map/connectivity_aware_tile_layer.dart';
 
 import 'dart:math';
 
@@ -164,11 +163,15 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
                   Builder(builder: (context) {
                     var isDark =
                         Theme.of(context).brightness == Brightness.dark;
-                    const tileLayer = ConnectivityAwareTileLayer();
+                    const tileLayer = TileLayer(
+                      tileProvider: NetworkTileProvider(),
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'de.dchristl.headlesshaystack',
+                    );
                     // One color-matrix filter for the whole layer, not
                     // one per individual tile — much cheaper to render
-                    // during a fast zoom/pan (see the doc comment on
-                    // ConnectivityAwareTileLayer for why this matters).
+                    // during a fast zoom/pan.
                     return isDark
                         ? const ColorFiltered(
                             colorFilter: ColorFilter.matrix([
