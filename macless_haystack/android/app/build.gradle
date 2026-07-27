@@ -70,7 +70,7 @@ android {
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
             def buildTypeName = variant.buildType.name
-            outputFileName = "AGFind-${buildTypeName}.apk"
+            outputFileName = "AGFind-${buildTypeName}-v${variant.versionName}.apk"
         }
     }
 }
