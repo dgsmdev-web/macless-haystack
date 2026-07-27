@@ -117,6 +117,7 @@ class _AccessoryMapState extends State<AccessoryMap> {
               tileProvider: NetworkTileProvider(),
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.aggroupbg.agfind',
+              keepBuffer: 0,
             );
             // One color-matrix filter for the whole layer, not one per
             // individual tile — much cheaper to render during a fast
