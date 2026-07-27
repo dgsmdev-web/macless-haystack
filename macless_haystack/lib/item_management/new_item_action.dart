@@ -32,7 +32,7 @@ class NewKeyAction extends StatelessWidget {
     if (result != null) {
       var uploadfile = result.files.single.bytes;
       if (uploadfile != null && context.mounted) {
-        Navigator.pushReplacement(
+        Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => ItemFileImport(bytes: uploadfile),
@@ -42,7 +42,7 @@ class NewKeyAction extends StatelessWidget {
         if (filePath != null) {
           var fileAsBytes = await File(filePath).readAsBytes();
           if (context.mounted) {
-            Navigator.pushReplacement(
+            Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => ItemFileImport(bytes: fileAsBytes),

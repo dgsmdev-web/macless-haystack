@@ -82,10 +82,13 @@ class _ItemFileImportState extends State<ItemFileImport> {
     return accessoryDTOs;
   }
 
-  /// Import the selected accessories.
-  Future<void> _importSelectedAccessories() async {
+  /// Import the selected accessories. Returns true if this method
+  /// already navigated away from this screen itself (the duplicate
+  /// dialog's OK button does this) — the caller should NOT pop again
+  /// in that case, or it would pop one screen too many.
+  Future<bool> _importSelectedAccessories() async {
     if (accessories == null) {
-      return; // File not parsed. Do nothing.
+      return false; // File not parsed. Do nothing.
     }
 
     var registry = Provider.of<AccessoryRegistry>(context, listen: false);
@@ -108,7 +111,7 @@ class _ItemFileImportState extends State<ItemFileImport> {
       }
     }
 
-    if (!mounted) return;
+    if (!mounted) return true;
 
     if (duplicateMessages.isNotEmpty) {
       await showDialog<void>(
@@ -121,15 +124,14 @@ class _ItemFileImportState extends State<ItemFileImport> {
                 child: const Text('OK'),
                 onPressed: () {
                   Navigator.of(dialogContext).pop(); // close dialog
-                  Navigator.of(context, rootNavigator: true)
-                      .pop(); // back to add menu
+                  Navigator.of(context).pop(); // back to accessories list
                 },
               ),
             ],
           );
         },
       );
-      return;
+      return true; // the OK button above already popped this screen
     }
 
     if (importedCount > 0) {
@@ -139,6 +141,7 @@ class _ItemFileImportState extends State<ItemFileImport> {
       );
       ScaffoldMessenger.of(context).showSnackBar(snackbar);
     }
+    return false;
   }
 
   /// Import a specific [accessory] by converting the DTO to the internal
@@ -301,10 +304,12 @@ class _ItemFileImportState extends State<ItemFileImport> {
         title: const Text('Select Accessories'),
         actions: [
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (accessories != null) {
-                _importSelectedAccessories();
-                Navigator.of(context, rootNavigator: true).pop();
+                var alreadyNavigatedAway = await _importSelectedAccessories();
+                if (!alreadyNavigatedAway && mounted) {
+                  Navigator.of(context).pop();
+                }
               }
             },
             child: const Text('Import'),
