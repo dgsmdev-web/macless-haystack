@@ -28,13 +28,15 @@ jobs:
         working-directory: ./macless_haystack
         run: flutter build apk --release
 
-      - name: Rename APK
-        working-directory: ./macless_haystack
-        run: |
-          mv build/app/outputs/flutter-apk/*.apk build/app/outputs/flutter-apk/AGFind-release.apk
+      # No more "Rename APK" step — it used to force the file back to a
+      # fixed "AGFind-release.apk" name, which overwrote the versioned
+      # name Gradle already produces on its own now (outputFileName in
+      # android/app/build.gradle is set to
+      # "AGFind-release-v${versionName}.apk"). Removing this step lets
+      # that versioned name survive all the way to the download.
 
       - name: Upload APK
         uses: actions/upload-artifact@v6
         with:
           name: AGFind-release
-          path: ./macless_haystack/build/app/outputs/flutter-apk/AGFind-release.apk
+          path: ./macless_haystack/build/app/outputs/flutter-apk/*.apk
