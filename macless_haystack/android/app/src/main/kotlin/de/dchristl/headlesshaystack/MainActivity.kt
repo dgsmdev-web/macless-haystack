@@ -1,4 +1,4 @@
-package de.dchristl.headlesshaystack
+package com.aggroupbg.agfind
 
 import android.os.Build
 import android.os.Bundle
@@ -24,4 +24,3 @@ class MainActivity: FlutterFragmentActivity() {
     super.onCreate(savedInstanceState)
   }
 }
-
