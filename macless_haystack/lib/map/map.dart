@@ -113,7 +113,7 @@ class _AccessoryMapState extends State<AccessoryMap> {
         children: [
           Builder(builder: (context) {
             var isDark = Theme.of(context).brightness == Brightness.dark;
-            const tileLayer = TileLayer(
+            var tileLayer = TileLayer(
               tileProvider: NetworkTileProvider(),
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'de.dchristl.headlesshaystack',
@@ -122,7 +122,7 @@ class _AccessoryMapState extends State<AccessoryMap> {
             // individual tile — much cheaper to render during a fast
             // zoom/pan.
             return isDark
-                ? const ColorFiltered(
+                ? ColorFiltered(
                     colorFilter: ColorFilter.matrix([
                       -1,
                       0,
