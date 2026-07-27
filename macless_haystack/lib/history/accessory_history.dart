@@ -117,7 +117,11 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
               } else if (choice == 'backup') {
                 var fullHistory = widget.accessory.getSortedLocationHistory();
                 if (fullHistory.isEmpty) return;
-                await backupHistoryAsJson(widget.accessory.name, fullHistory);
+                await backupHistoryAsJson(
+                  widget.accessory.id,
+                  widget.accessory.name,
+                  fullHistory,
+                );
               } else if (choice == 'restore') {
                 await _restoreHistoryBackup();
               }
@@ -408,11 +412,13 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
 
   /// Lets the user pick a JSON backup file (created via "Backup Full
   /// History") and, after confirming, replaces this accessory's entire
-  /// stored history with what's in the file.
+  /// stored history with what's in the file. Refuses the restore
+  /// outright — no confirmation dialog, no data touched — if the
+  /// backup was made from a *different* tag.
   Future<void> _restoreHistoryBackup() async {
-    List<Pair<dynamic, dynamic>>? restored;
+    HistoryBackup? backup;
     try {
-      restored = await restoreHistoryFromFile();
+      backup = await restoreHistoryFromFile();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -421,8 +427,24 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
       }
       return;
     }
-    if (restored == null) return; // user cancelled the picker
+    if (backup == null) return; // user cancelled the picker
 
+    if (backup.accessoryId != widget.accessory.id) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'This backup file is not from "${widget.accessory.name}" — '
+              'it belongs to "${backup.accessoryName}". Restore it onto '
+              'that tag instead.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    var restored = backup.entries;
     if (!mounted) return;
     var confirmed = await showDialog<bool>(
       context: context,
@@ -430,7 +452,7 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
         title: const Text('Restore history?'),
         content: Text(
           'This will replace the current history for '
-          '"${widget.accessory.name}" (${restored!.length} entries in the '
+          '"${widget.accessory.name}" (${restored.length} entries in the '
           'backup) — the existing history will be lost. This cannot be '
           'undone.',
         ),
