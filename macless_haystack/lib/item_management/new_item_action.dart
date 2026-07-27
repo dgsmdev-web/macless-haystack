@@ -1,7 +1,6 @@
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:macless_haystack/item_management/item_creation.dart';
 import 'package:macless_haystack/item_management/item_file_import.dart';
 import 'dart:io';
 
@@ -9,79 +8,49 @@ class NewKeyAction extends StatelessWidget {
   /// If the action button is small.
   final bool mini;
 
-  /// Displays a floating button used to access the accessory creation menu.
+  /// Displays a floating button that opens the file picker directly to
+  /// import an accessory from a JSON file.
   ///
-  /// A new accessory can be created or an existing one imported from a
-  /// JSON file. (The old "Import Accessory" manual key-entry option was
-  /// removed on purpose — JSON file import and Create new Accessory
-  /// cover the same ground more safely.)
+  /// This used to open an intermediate bottom sheet with a choice
+  /// between "Import from JSON File" and "Create new Accessory" — now
+  /// that only the JSON import option remains, that extra step was
+  /// removed and the button jumps straight to the file picker.
   const NewKeyAction({
     super.key,
     this.mini = false,
   });
 
-  /// Display a bottom sheet with creation options.
-  void showCreationSheet(BuildContext context) {
-    showModalBottomSheet(
-        context: context,
-        builder: (BuildContext context) {
-          return SafeArea(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ListTile(
-                  title: const Text('Import from JSON File'),
-                  leading: const Icon(Icons.description),
-                  onTap: () async {
-                    FilePickerResult? result =
-                        await FilePicker.platform.pickFiles(
-                      allowMultiple: false,
-                      type: FileType.custom,
-                      allowedExtensions: ['json'],
-                      dialogTitle: 'Select accessory configuration',
-                    );
+  /// Opens the file picker to import an accessory from a JSON file.
+  Future<void> pickAccessoryFile(BuildContext context) async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      dialogTitle: 'Выберите свой файл метки',
+    );
 
-                    if (result != null) {
-                      var uploadfile = result.files.single.bytes;
-                      if (uploadfile != null && context.mounted) {
-                        Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ItemFileImport(bytes: uploadfile),
-                            ));
-                      } else if (result.paths.isNotEmpty) {
-                        String? filePath = result.paths[0];
-                        if (filePath != null) {
-                          var fileAsBytes = await File(filePath).readAsBytes();
-                          if (context.mounted) {
-                            Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      ItemFileImport(bytes: fileAsBytes),
-                                ));
-                          }
-                        }
-                      }
-                    }
-                  },
-                ),
-                ListTile(
-                  title: const Text('Create new Accessory'),
-                  leading: const Icon(Icons.add_box),
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const AccessoryGeneration()),
-                    );
-                  },
-                ),
-              ],
-            ),
-          );
-        });
+    if (result != null) {
+      var uploadfile = result.files.single.bytes;
+      if (uploadfile != null && context.mounted) {
+        Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ItemFileImport(bytes: uploadfile),
+            ));
+      } else if (result.paths.isNotEmpty) {
+        String? filePath = result.paths[0];
+        if (filePath != null) {
+          var fileAsBytes = await File(filePath).readAsBytes();
+          if (context.mounted) {
+            Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ItemFileImport(bytes: fileAsBytes),
+                ));
+          }
+        }
+      }
+    }
   }
 
   @override
@@ -90,9 +59,9 @@ class NewKeyAction extends StatelessWidget {
       mini: mini,
       heroTag: null,
       onPressed: () {
-        showCreationSheet(context);
+        pickAccessoryFile(context);
       },
-      tooltip: 'Create',
+      tooltip: 'Import from JSON File',
       child: const Icon(Icons.add),
     );
   }
