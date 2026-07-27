@@ -14,6 +14,13 @@
                  while the Flutter UI initializes. After that, this theme continues
                  to determine the Window background behind the Flutter UI. -->
             <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
+            <!-- Disables Impeller (Flutter's newer rendering engine),
+                 falling back to the older, more battle-tested Skia
+                 renderer. Impeller has known performance/stability
+                 issues on some Android devices — this is a diagnostic
+                 test for the map freeze, since every other difference
+                 in the app's own code has already been ruled out. -->
+            <meta-data android:name="io.flutter.embedding.android.EnableImpeller" android:value="false" />
             <!-- Displays an Android View that continues showing the launch screen
                  Drawable until Flutter paints its first frame, then this splash
                  screen fades out. A splash screen is useful to avoid any visual
