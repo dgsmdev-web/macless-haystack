@@ -70,7 +70,15 @@ class AccessoryRegistry extends ChangeNotifier {
   Future<void> loadHistory() async {
     String? history = await _storage.read(key: historyStorageKey);
     if (history != null) {
-      Map<String, dynamic> jsonDecoded = jsonDecode(history);
+      // jsonDecode() is a synchronous, CPU-bound operation — for a
+      // small history blob this is instant, but this app's history is
+      // now kept indefinitely (no more 7-day cap), so after enough
+      // testing/real use the blob can grow large enough that decoding
+      // it synchronously on the UI isolate causes a real, visible
+      // freeze. compute() runs it on a background isolate instead, so
+      // the UI thread stays responsive no matter how big the history
+      // has grown.
+      Map<String, dynamic> jsonDecoded = await compute(jsonDecode, history);
       for (var item in _accessories) {
         var currElement = jsonDecoded[item.id];
         if (currElement != null) {
@@ -165,7 +173,18 @@ class AccessoryRegistry extends ChangeNotifier {
       historyEntriesAsJson[a.id] = a.locationHistory;
     });
 
-    var historyJson = jsonEncode(historyEntriesAsJson);
+    // Custom objects like Pair can't be sent across an isolate boundary
+    // directly, so first convert everything to plain, primitive
+    // Maps/Lists on the main thread (cheap — it's just copying fields
+    // via each Pair's own toJson()). The actual JSON *string*
+    // serialization — the genuinely expensive part once history has
+    // grown large, since the 7-day cap was removed — then runs on a
+    // background isolate via compute(), so it can't block the UI
+    // thread no matter how much history has accumulated.
+    var primitiveMap = historyEntriesAsJson.map(
+      (key, pairs) => MapEntry(key, pairs.map((p) => p.toJson()).toList()),
+    );
+    var historyJson = await compute(jsonEncode, primitiveMap);
     _storage.write(key: historyStorageKey, value: historyJson);
   }
 
@@ -347,11 +366,12 @@ class AccessoryRegistry extends ChangeNotifier {
     if (history == null || history.isEmpty) {
       return;
     }
-    Map<String, dynamic> historyMap = jsonDecode(history);
+    Map<String, dynamic> historyMap = await compute(jsonDecode, history);
 
     historyMap.remove(accessoryToRemove.id);
 
-    await _storage.write(key: historyStorageKey, value: jsonEncode(historyMap));
+    var newHistoryJson = await compute(jsonEncode, historyMap);
+    await _storage.write(key: historyStorageKey, value: newHistoryJson);
   }
 
   void saveOrderUpdates(List<Accessory> newOrder) {
