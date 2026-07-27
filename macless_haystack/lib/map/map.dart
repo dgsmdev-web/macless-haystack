@@ -118,6 +118,17 @@ class _AccessoryMapState extends State<AccessoryMap> {
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.aggroupbg.agfind',
               keepBuffer: 0,
+              // The ANR trace showed the main thread pegged at 100% CPU
+              // in rendering code for 5+ seconds during a fast pinch
+              // zoom — not blocked, genuinely doing continuous
+              // rendering work. Throttling how often the tile layer
+              // reacts to camera movement (instead of recalculating on
+              // every single frame of the gesture) cuts that workload
+              // directly, which a "which renderer" swap (Impeller vs
+              // Skia) can't do on its own.
+              tileUpdateTransformer: TileUpdateTransformers.throttle(
+                const Duration(milliseconds: 200),
+              ),
             );
             // One color-matrix filter for the whole layer, not one per
             // individual tile — much cheaper to render during a fast
