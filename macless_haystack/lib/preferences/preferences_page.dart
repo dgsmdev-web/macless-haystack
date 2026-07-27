@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:macless_haystack/location/location_model.dart';
 import 'package:macless_haystack/preferences/app_lock_settings_section.dart';
@@ -36,6 +37,27 @@ class _PreferencesPageState extends State<PreferencesPage> {
             const AppLockSettingsSection(),
             ListTile(
               title: getAbout(),
+            ),
+            // Version of the actually installed build (from the app's
+            // own manifest/package metadata, not just the source code)
+            // — makes it obvious at a glance which build is on the
+            // device, instead of guessing from file names or timestamps.
+            FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox();
+                final info = snapshot.data!;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 12),
+                  child: Text(
+                    'AG Find v${info.version}+${info.buildNumber}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).hintColor,
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
