@@ -3,12 +3,16 @@ package com.aggroupbg.agfind
 import android.os.Build
 import android.os.Bundle
 import androidx.core.view.WindowCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-// ВРЕМЕННО для теста — обычный FlutterActivity вместо FlutterFragmentActivity.
-// Это отключит вход по отпечатку пальца (PIN продолжит работать), но
-// позволит проверить, была ли именно эта смена причиной зависаний карты.
-class MainActivity: FlutterActivity() {
+// FlutterFragmentActivity (not the plain FlutterActivity this project
+// used before) is required by the local_auth plugin — it shows the
+// biometric/fingerprint prompt as a Fragment, which needs a
+// FragmentActivity host to attach to. Confirmed via testing that this
+// is NOT related to the map freeze issue — both variants froze
+// identically, so this stays as FlutterFragmentActivity to keep
+// fingerprint unlock working.
+class MainActivity: FlutterFragmentActivity() {
 
       override fun onCreate(savedInstanceState: Bundle?) {
     WindowCompat.setDecorFitsSystemWindows(getWindow(), false)
