@@ -79,7 +79,9 @@ class AccessoryRegistry extends ChangeNotifier {
       // freeze. compute() runs it on a background isolate instead, so
       // the UI thread stays responsive no matter how big the history
       // has grown.
-      Map<String, dynamic> jsonDecoded = await compute(jsonDecode, history);
+      Map<String, dynamic> jsonDecoded = await compute(
+          (String source) => jsonDecode(source) as Map<String, dynamic>,
+          history);
       for (var item in _accessories) {
         var currElement = jsonDecoded[item.id];
         if (currElement != null) {
@@ -367,7 +369,9 @@ class AccessoryRegistry extends ChangeNotifier {
     if (history == null || history.isEmpty) {
       return;
     }
-    Map<String, dynamic> historyMap = await compute(jsonDecode, history);
+    Map<String, dynamic> historyMap = await compute(
+        (String source) => jsonDecode(source) as Map<String, dynamic>,
+        history);
 
     historyMap.remove(accessoryToRemove.id);
 
