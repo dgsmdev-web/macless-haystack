@@ -168,6 +168,10 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.aggroupbg.agfind',
+                      keepBuffer: 0,
+                      tileUpdateTransformer: TileUpdateTransformers.throttle(
+                        const Duration(milliseconds: 200),
+                      ),
                     );
                     // One color-matrix filter for the whole layer, not
                     // one per individual tile — much cheaper to render
