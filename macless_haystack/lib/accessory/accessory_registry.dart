@@ -191,6 +191,21 @@ class AccessoryRegistry extends ChangeNotifier {
     _storage.write(key: historyStorageKey, value: historyJson);
   }
 
+  /// Persists the current in-memory location history of every accessory
+  /// to storage as-is, without fetching anything new. Used after
+  /// [Accessory.addLocationHistory] has been called directly (e.g. to
+  /// restore a history backup) — the in-memory change alone wouldn't
+  /// survive an app restart without this.
+  Future<void> persistAllHistory() async {
+    Map<String, List<dynamic>> historyEntriesAsJson = {
+      for (var a in _accessories)
+        a.id: a.locationHistory.map((p) => p.toJson()).toList(),
+    };
+    var historyJson = await compute(jsonEncode, historyEntriesAsJson);
+    await _storage.write(key: historyStorageKey, value: historyJson);
+    notifyListeners();
+  }
+
   /// Stores the user's accessories in persistent storage.
   Future<void> _storeAccessories() async {
     List jsonList = _accessories.map(jsonEncode).toList();
