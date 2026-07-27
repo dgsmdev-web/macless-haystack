@@ -27,10 +27,15 @@ class ItemExportMenu extends StatelessWidget {
     required this.accessory,
   });
 
-  /// Shows the export options for the [accessory].
-  void showKeyExportSheet(BuildContext context, Accessory accessory) {
+  /// Shows the export options for the [accessory]. [outerContext] is the
+  /// context of the page this menu was opened from — kept separate from
+  /// the bottom sheet's own inner builder context (below), since the
+  /// sheet's context stops being valid the instant the sheet closes,
+  /// while outerContext stays mounted for as long as the page itself is
+  /// on screen.
+  void showKeyExportSheet(BuildContext outerContext, Accessory accessory) {
     showModalBottomSheet(
-        context: context,
+        context: outerContext,
         builder: (BuildContext context) {
           return SafeArea(
             child: ListView(
@@ -68,9 +73,19 @@ class ItemExportMenu extends StatelessWidget {
                   ),
                   subtitle: const Text(
                       'Permanently erases all recorded location points for this tag — cannot be undone'),
-                  onTap: () async {
-                    Navigator.pop(context); // close the export sheet first
-                    await _confirmAndDeleteHistory(context, accessory);
+                  onTap: () {
+                    // Close the export sheet first, then run the
+                    // confirm-and-delete flow using the OUTER page
+                    // context (captured below as `outerContext`) —
+                    // not this sheet's own inner `context`, which
+                    // becomes unmounted the instant the sheet closes.
+                    // Using the now-dead inner context here silently
+                    // no-ops the whole delete (the `context.mounted`
+                    // guard in _confirmAndDeleteHistory quietly skips
+                    // it), which is why "Delete" previously appeared
+                    // to do nothing.
+                    Navigator.pop(context);
+                    _confirmAndDeleteHistory(outerContext, accessory);
                   },
                 ),
               ],
