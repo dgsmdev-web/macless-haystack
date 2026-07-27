@@ -3,10 +3,13 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:macless_haystack/accessory/accessory_model.dart';
+import 'package:macless_haystack/accessory/accessory_registry.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:macless_haystack/history/day_selection_checkboxes.dart';
 import 'package:macless_haystack/history/location_popup.dart';
+import 'package:macless_haystack/item_management/history_backup.dart';
 import 'package:macless_haystack/item_management/kml_export.dart';
+import 'package:provider/provider.dart';
 
 import 'dart:math';
 
@@ -93,7 +96,7 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
             )),
         actions: [
           PopupMenuButton<String>(
-            tooltip: 'Export history (KML)',
+            tooltip: 'Export / backup history',
             icon: const Icon(Icons.share),
             onSelected: (String choice) async {
               if (choice == 'selected') {
@@ -111,6 +114,12 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
                   fullHistory,
                   nameSuffix: 'all_days',
                 );
+              } else if (choice == 'backup') {
+                var fullHistory = widget.accessory.getSortedLocationHistory();
+                if (fullHistory.isEmpty) return;
+                await backupHistoryAsJson(widget.accessory.name, fullHistory);
+              } else if (choice == 'restore') {
+                await _restoreHistoryBackup();
               }
             },
             itemBuilder: (BuildContext context) => [
@@ -122,6 +131,15 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
               const PopupMenuItem<String>(
                 value: 'all',
                 child: Text('Export all available days'),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'backup',
+                child: Text('Backup Full History'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'restore',
+                child: Text('Restore Full History'),
               ),
             ],
           ),
@@ -386,6 +404,59 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
       return dates.join('_');
     }
     return '${dates.length}_days';
+  }
+
+  /// Lets the user pick a JSON backup file (created via "Backup Full
+  /// History") and, after confirming, replaces this accessory's entire
+  /// stored history with what's in the file.
+  Future<void> _restoreHistoryBackup() async {
+    List<Pair<dynamic, dynamic>>? restored;
+    try {
+      restored = await restoreHistoryFromFile();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not read backup file: $e')),
+        );
+      }
+      return;
+    }
+    if (restored == null) return; // user cancelled the picker
+
+    if (!mounted) return;
+    var confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore history?'),
+        content: Text(
+          'This will replace the current history for '
+          '"${widget.accessory.name}" (${restored!.length} entries in the '
+          'backup) — the existing history will be lost. This cannot be '
+          'undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    widget.accessory.addLocationHistory(restored.map((p) => p.toJson()).toList());
+    if (!mounted) return;
+    await Provider.of<AccessoryRegistry>(context, listen: false)
+        .persistAllHistory();
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Restored ${restored.length} history entries.')),
+    );
   }
 
   var logger = Logger(
