@@ -3,6 +3,9 @@ name: Build APK only
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -24,6 +27,32 @@ jobs:
       - name: Get dependencies
         working-directory: ./macless_haystack
         run: flutter pub get
+
+      # Automatically bumps the patch number (the third number, e.g.
+      # 2.8.0 -> 2.8.1) in pubspec.yaml before every manual build, so
+      # you never have to edit the version by hand — just press "Run
+      # workflow" and the version moves forward on its own. The change
+      # is committed straight back to the repo, so the next run starts
+      # from the new number, not the old one.
+      - name: Bump version number
+        working-directory: ./macless_haystack
+        run: |
+          CURRENT=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          sed -i "s/^version: .*/version: ${NEW_VERSION}+1/" pubspec.yaml
+          echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+          echo "Bumped version: ${CURRENT} -> ${NEW_VERSION}"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add macless_haystack/pubspec.yaml
+          git commit -m "Bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          git push
 
       - name: Build APK
         working-directory: ./macless_haystack
