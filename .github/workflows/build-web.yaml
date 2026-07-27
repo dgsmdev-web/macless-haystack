@@ -1,6 +1,7 @@
 name: Build Web only
 
-on: [push]
+on:
+  workflow_dispatch:
 
 jobs:
   build-web:
@@ -28,12 +29,18 @@ jobs:
         working-directory: ./macless_haystack
         run: flutter build web --release
 
-      - name: Zip web build
-        working-directory: ./macless_haystack/build/web
-        run: zip -r ../../../AGFind-web.zip .
+      # Version read directly from pubspec.yaml — same reliable
+      # bash-based approach used for the APK build, no dependency on
+      # any Gradle/Flutter plugin API.
+      - name: Zip web build with version
+        working-directory: ./macless_haystack
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')
+          cd build/web
+          zip -r ../../../AGFind-web-v${VERSION}.zip .
 
       - name: Upload Web bundle
         uses: actions/upload-artifact@v6
         with:
           name: AGFind-web
-          path: ./AGFind-web.zip
+          path: ./AGFind-web-v*.zip
