@@ -71,14 +71,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       locationModel.requestLocationUpdates();
     }
     // Load new location reports on app start. There is deliberately NO
-    // periodic timer anymore (see didChangeAppLifecycleState below for
-    // why) — refreshes only happen: on a true cold start (here), when
-    // returning to the app from the background, and on the manual
-    // refresh button. All three only ever fire because a person
-    // actually did something (opened the app, switched back to it, or
-    // tapped refresh) — never on a fixed, predictable interval, which
-    // is what could look like automated/bot-like behaviour to Apple's
-    // anti-abuse systems.
+    // periodic timer anymore — refreshes only happen: on a true cold
+    // start (here), when returning to the app from the background (see
+    // didChangeAppLifecycleState below), and on the manual refresh
+    // button. All three only ever fire because a person actually did
+    // something (opened the app, switched back to it, or tapped
+    // refresh) — never on a fixed, predictable interval.
+    //
+    // This resume-on-return listener was temporarily removed for a
+    // diagnostic test while chasing the map freeze — confirmed via a
+    // real ANR trace from the device that the freeze is an
+    // engine/rendering-level issue, unrelated to this. Restored.
     if (Settings.getValue<bool>(fetchLocationOnStartupKey,
         defaultValue: true)!) {
       loadLocationUpdates(null);
