@@ -50,7 +50,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
                 return Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 12),
                   child: Text(
-                    'AG Find v${info.version}+${info.buildNumber}',
+                    'AG Find v${info.version}',
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).hintColor,
