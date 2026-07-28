@@ -78,26 +78,42 @@ class DecryptReports {
     final status = payload.buffer.asByteData(9, 1).getUint8(0);
 
     AccessoryBatteryStatus? batteryStatus;
-    //STATUS_FLAG_BATTERY_UPDATES_SUPPORT is set (macless firmware) or status is not zero (pix firmware)
-    if (status & 00100000 != 0 || status > 0) {
-      switch (status >> 6) {
-        // get highest 2 bits
-        case 0:
-          batteryStatus = AccessoryBatteryStatus.ok;
-          break;
-        case 1:
-          batteryStatus = AccessoryBatteryStatus.medium;
-          break;
-        case 2:
-          batteryStatus = AccessoryBatteryStatus.low;
-          break;
-        case 3:
-          batteryStatus = AccessoryBatteryStatus.criticalLow;
-          break;
-        default:
+    // BATT_ENABLE UPDATE: previously this was gated behind a
+    // "does the flag bit say battery reporting is supported, or is
+    // the byte nonzero" check — meant to avoid confusing "full battery
+    // (0x00)" with "this tag doesn't report battery at all (also
+    // 0x00 by default)". Confirmed via a real Wireshark capture (see
+    // project notes) that this specific firmware always sends 0x00
+    // for a full battery, with no distinguishing flag bit — so the
+    // old gate made a full battery indistinguishable from "no data"
+    // and the green "full" icon could never appear in practice.
+    //
+    // Per explicit decision: regardless of whether HAS_BATTERY /
+    // Batt_en was enabled when this firmware was built, always decode
+    // the status byte's top two bits and show green for the resulting
+    // "full battery" case. This trades away the ability to tell "genuinely
+    // no battery data" apart from "full battery" — but since this project's
+    // firmware never sends anything BUT one of these four values in this
+    // byte, that distinction wasn't actually possible to make reliably
+    // anyway, and showing a full-battery icon is preferable to showing
+    // no icon at all for the common case.
+    switch (status >> 6) {
+      // get highest 2 bits
+      case 0:
+        batteryStatus = AccessoryBatteryStatus.ok;
+        break;
+      case 1:
+        batteryStatus = AccessoryBatteryStatus.medium;
+        break;
+      case 2:
+        batteryStatus = AccessoryBatteryStatus.low;
+        break;
+      case 3:
+        batteryStatus = AccessoryBatteryStatus.criticalLow;
+        break;
+      default:
           batteryStatus = null;
       }
-    }
     final latitudeDec = latitude / 10000000.0;
     final longitudeDec = longitude / 10000000.0;
 
