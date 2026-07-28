@@ -77,6 +77,15 @@ class Accessory {
 
   /// A list of known locations over time.
   List<Pair<dynamic, dynamic>> locationHistory = [];
+
+  /// Bumped every time the history is explicitly cleared (see
+  /// AccessoryRegistry.clearHistory/deleteData). A location-report
+  /// fetch that was already in flight when a clear happened captures
+  /// this value beforehand and checks it again before merging its
+  /// results — if it changed, the clear happened mid-fetch and the
+  /// (now stale) fetched reports are discarded instead of silently
+  /// undoing the user's deletion.
+  int historyGeneration = 0;
   Map<String, dynamic> hashesWithTS = {};
 
   /// Stores address information about the current location.
