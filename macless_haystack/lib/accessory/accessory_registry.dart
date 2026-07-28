@@ -20,6 +20,19 @@ class AccessoryRegistry extends ChangeNotifier {
   bool loading = false;
   bool initialLoadFinished = false;
 
+  /// While true, the "refresh on returning to the app" listener
+  /// (see Dashboard.didChangeAppLifecycleState) skips its refresh
+  /// entirely instead of firing as normal.
+  ///
+  /// Needed specifically for "Restore Full History": opening the
+  /// system file picker technically backgrounds and then resumes the
+  /// app, which would otherwise trigger that exact listener — pulling
+  /// in real, newer location data from the server (which knows
+  /// nothing about a purely local delete) right as the user is trying
+  /// to restore an older backup, and silently overwriting what they
+  /// just restored.
+  bool suppressResumeRefresh = false;
+
   var logger = Logger(
     printer: PrettyPrinter(methodCount: 0),
   );
@@ -141,7 +154,17 @@ class AccessoryRegistry extends ChangeNotifier {
         var lastReport =
             reports.where((element) => !element.isEncrypted()).first;
         var reportDate = lastReport.timestamp ?? DateTime.fromMicrosecondsSinceEpoch(0);
-        if (accessory.datePublished != null &&
+        // Skip this update entirely if the user cleared or restored
+        // this accessory's history while this fetch was still in
+        // flight — otherwise a stale server report (Apple's network
+        // doesn't know about a purely local delete/restore) would
+        // silently bring back the very date/location the user just
+        // changed, since it's chronologically "newer" than whatever
+        // was just set locally.
+        var generationUnchanged =
+            accessory.historyGeneration == generationAtFetchStart[accessory];
+        if (generationUnchanged &&
+            accessory.datePublished != null &&
             reportDate.isAfter(accessory.datePublished!)) {
           accessory.datePublished = reportDate;
           accessory.lastLocation =
@@ -321,7 +344,13 @@ class AccessoryRegistry extends ChangeNotifier {
       var latestReportTS =
           lastReport.timestamp ??  DateTime(1971);
 
-      if (oldTs == null || oldTs.isBefore(latestReportTS)) {
+      // Same protection as the history-merge guard below: don't let a
+      // fetch that started before a Delete or Restore silently bring
+      // back the pre-change date/location once it finishes.
+      var generationUnchanged =
+          accessory.historyGeneration == generationAtFetchStart;
+      if (generationUnchanged &&
+          (oldTs == null || oldTs.isBefore(latestReportTS))) {
         //only an actualization if oldTS is not set or is older than the latest of the new ones
         accessory.lastLocation =
             LatLng(lastReport.latitude!, lastReport.longitude!);
@@ -380,17 +409,17 @@ class AccessoryRegistry extends ChangeNotifier {
     }
   }
 
-  /// Clears only the recorded location history of [accessory] — unlike
-  /// [deleteData], this leaves the accessory's current known location
-  /// and battery status untouched, so it still shows up correctly on
-  /// the main map. The history trail (and its persisted storage entry)
-  /// AND the "last seen" date shown under the tag on the Map tab are
-  /// both wiped — that date is derived from history, so it would be
-  /// misleading to leave it showing after the history itself is gone.
+  /// Clears the recorded location history of [accessory], including
+  /// its current known location, battery status and "last seen" date
+  /// — a full reset back to "never located", not just the history
+  /// trail. (Unlike [deleteData], the accessory itself, its keys, and
+  /// its name/icon/color stay — only location-derived data is wiped.)
   Future<void> clearHistory(Accessory accessory) async {
     accessory.locationHistory.clear();
     accessory.historyGeneration++;
     accessory.datePublished = DateTime(1970);
+    accessory.lastLocation = null;
+    accessory.lastBatteryStatus = null;
     await _removeHistoryEntry(accessory);
     _storeAccessories();
     notifyListeners();
