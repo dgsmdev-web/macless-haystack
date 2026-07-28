@@ -416,80 +416,97 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
   /// outright — no confirmation dialog, no data touched — if the
   /// backup was made from a *different* tag.
   Future<void> _restoreHistoryBackup() async {
-    HistoryBackup? backup;
+    // Set BEFORE opening the file picker below — the picker itself is
+    // what triggers the app-pause/app-resume that would otherwise fire
+    // an unwanted auto-refresh (see suppressResumeRefresh's own doc
+    // comment on AccessoryRegistry for the full story). Cleared in the
+    // finally block below no matter how this method exits.
+    var registry = Provider.of<AccessoryRegistry>(context, listen: false);
+    registry.suppressResumeRefresh = true;
     try {
-      backup = await restoreHistoryFromFile();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not read backup file: $e')),
-        );
+      HistoryBackup? backup;
+      try {
+        backup = await restoreHistoryFromFile();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not read backup file: $e')),
+          );
+        }
+        return;
       }
-      return;
-    }
-    if (backup == null) return; // user cancelled the picker
+      if (backup == null) return; // user cancelled the picker
 
-    if (backup.accessoryId != widget.accessory.id) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'This backup file is not from "${widget.accessory.name}" — '
-              'it belongs to "${backup.accessoryName}". Restore it onto '
-              'that tag instead.',
+      if (backup.accessoryId != widget.accessory.id) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'This backup file is not from "${widget.accessory.name}" — '
+                'it belongs to "${backup.accessoryName}". Restore it onto '
+                'that tag instead.',
+              ),
             ),
-          ),
-        );
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    var restored = backup.entries;
-    if (!mounted) return;
-    var confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Restore history?'),
-        content: Text(
-          'This will replace the current history for '
-          '"${widget.accessory.name}" (${restored.length} entries in the '
-          'backup) — the existing history will be lost. This cannot be '
-          'undone.',
+      var restored = backup.entries;
+      if (!mounted) return;
+      var confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Restore history?'),
+          content: Text(
+            'This will replace the current history for '
+            '"${widget.accessory.name}" (${restored.length} entries in the '
+            'backup) — the existing history will be lost. This cannot be '
+            'undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Restore'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Restore'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+      );
+      if (confirmed != true) return;
 
-    widget.accessory.addLocationHistory(restored.map((p) => p.toJson()).toList());
-    // Show the date of the most recent restored point as this tag's
-    // "last updated" date on the Map tab — visible, immediate
-    // confirmation that the restore actually put data back (this also
-    // undoes the "unknown date" left behind by a prior Delete All
-    // History, if that's what happened before this restore).
-    if (restored.isNotEmpty) {
-      var latestEnd = restored
-          .map((p) => p.end)
-          .reduce((a, b) => a.isAfter(b) ? a : b);
-      widget.accessory.datePublished = latestEnd;
+      widget.accessory
+          .addLocationHistory(restored.map((p) => p.toJson()).toList());
+      // Bump the generation counter — same protection Delete All History
+      // already gets: a location fetch that was already in flight when
+      // this restore happened will see its generation snapshot no longer
+      // match, and will discard its (now stale) results instead of
+      // silently overwriting what was just restored.
+      widget.accessory.historyGeneration++;
+      // Show the date of the most recent restored point as this tag's
+      // "last updated" date on the Map tab — visible, immediate
+      // confirmation that the restore actually put data back (this also
+      // undoes the "unknown date" left behind by a prior Delete All
+      // History, if that's what happened before this restore).
+      if (restored.isNotEmpty) {
+        var latestEnd = restored
+            .map((p) => p.end)
+            .reduce((a, b) => a.isAfter(b) ? a : b);
+        widget.accessory.datePublished = latestEnd;
+      }
+      if (!mounted) return;
+      await registry.persistAllHistory();
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Restored ${restored.length} history entries.')),
+      );
+    } finally {
+      registry.suppressResumeRefresh = false;
     }
-    if (!mounted) return;
-    await Provider.of<AccessoryRegistry>(context, listen: false)
-        .persistAllHistory();
-    if (!mounted) return;
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Restored ${restored.length} history entries.')),
-    );
   }
 
   var logger = Logger(
