@@ -471,6 +471,17 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
     if (confirmed != true) return;
 
     widget.accessory.addLocationHistory(restored.map((p) => p.toJson()).toList());
+    // Show the date of the most recent restored point as this tag's
+    // "last updated" date on the Map tab — visible, immediate
+    // confirmation that the restore actually put data back (this also
+    // undoes the "unknown date" left behind by a prior Delete All
+    // History, if that's what happened before this restore).
+    if (restored.isNotEmpty) {
+      var latestEnd = restored
+          .map((p) => p.end)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      widget.accessory.datePublished = latestEnd;
+    }
     if (!mounted) return;
     await Provider.of<AccessoryRegistry>(context, listen: false)
         .persistAllHistory();
