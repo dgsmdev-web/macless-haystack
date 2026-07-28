@@ -491,11 +491,20 @@ class _AccessoryHistoryState extends State<AccessoryHistory> {
       // confirmation that the restore actually put data back (this also
       // undoes the "unknown date" left behind by a prior Delete All
       // History, if that's what happened before this restore).
+      //
+      // lastLocation is set from that SAME entry's own coordinates —
+      // NOT the phone's current physical position. The place/address
+      // text shown under the tag is reverse-geocoded from this
+      // coordinate (see Accessory's lastLocation setter), so this is
+      // what makes a backup made in one country correctly show that
+      // country's place name after being restored somewhere else,
+      // rather than showing nothing (Delete All History clears
+      // lastLocation, and restore wouldn't otherwise set it back).
       if (restored.isNotEmpty) {
-        var latestEnd = restored
-            .map((p) => p.end)
-            .reduce((a, b) => a.isAfter(b) ? a : b);
-        widget.accessory.datePublished = latestEnd;
+        var latestEntry =
+            restored.reduce((a, b) => a.end.isAfter(b.end) ? a : b);
+        widget.accessory.datePublished = latestEntry.end;
+        widget.accessory.lastLocation = latestEntry.location;
       }
       if (!mounted) return;
       await registry.persistAllHistory();
