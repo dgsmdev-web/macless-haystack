@@ -104,6 +104,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     // the app" — deliberately NOT a timer, just a one-off silent fetch
     // exactly when a person actually returns to the app.
     if (state == AppLifecycleState.resumed) {
+      var accessoryRegistry =
+          Provider.of<AccessoryRegistry>(context, listen: false);
+      if (accessoryRegistry.suppressResumeRefresh) {
+        // A Restore Full History is in progress — the file picker
+        // itself just triggered this "resume", not the person
+        // actually returning to check on things. Skip this one.
+        return;
+      }
       loadLocationUpdates(null, silent: true);
     }
   }
