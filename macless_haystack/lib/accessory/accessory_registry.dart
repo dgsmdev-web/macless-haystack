@@ -95,6 +95,16 @@ class AccessoryRegistry extends ChangeNotifier {
   Future<int> loadLocationReports(
       Iterable<Accessory> currentAccessories) async {
     List<Future<List<FindMyLocationReport>>> runningLocationRequests = [];
+    // Snapshot each accessory's history "generation" right now, before
+    // the network fetch even starts — if the user clears this
+    // accessory's history while this fetch is still in flight (a real
+    // possibility, since decrypting reports can take several seconds),
+    // the generation will have moved on by the time this fetch's
+    // results come back, and they'll be discarded instead of silently
+    // undoing the deletion.
+    Map<Accessory, int> generationAtFetchStart = {
+      for (var a in currentAccessories) a: a.historyGeneration,
+    };
 
     // request location updates for all accessories simultaneously
     String? url = Settings.getValue<String>(endpointUrl);
@@ -142,7 +152,8 @@ class AccessoryRegistry extends ChangeNotifier {
           accessory.hasChangedFlag = true;
         }
       }
-      historyEntries[accessory] = fillLocationHistory(reports, accessory);
+      historyEntries[accessory] = fillLocationHistory(
+          reports, accessory, generationAtFetchStart[accessory]!);
     }
     // Store updated lastLocation and datePublished for accessories
     _storeAccessories();
@@ -203,6 +214,10 @@ class AccessoryRegistry extends ChangeNotifier {
     };
     var historyJson = await compute(jsonEncode, historyEntriesAsJson);
     await _storage.write(key: historyStorageKey, value: historyJson);
+    // A restore can also update an accessory's datePublished (to show
+    // "last updated" again after a restore) — persist that too, not
+    // just the history entries themselves.
+    await _storeAccessories();
     notifyListeners();
   }
 
@@ -268,7 +283,8 @@ class AccessoryRegistry extends ChangeNotifier {
   }
 
   Future<List<Pair<dynamic, dynamic>>> fillLocationHistory(
-      List<FindMyLocationReport> reports, Accessory accessory) async {
+      List<FindMyLocationReport> reports, Accessory accessory,
+      int generationAtFetchStart) async {
     List<FindMyLocationReport> decryptedReports = [];
     //Decrypt only reports that are not already decrypted
     Set<String> hashes = {};
@@ -320,7 +336,15 @@ class AccessoryRegistry extends ChangeNotifier {
       }
     }
 
-//add to history in correct order
+//add to history in correct order — but only if the user hasn't cleared
+    // this accessory's history while we were fetching/decrypting; if
+    // they have, these results are stale and merging them would
+    // silently undo the deletion.
+    if (accessory.historyGeneration != generationAtFetchStart) {
+      logger.d(
+          'Skipping history merge for ${accessory.name} — history was cleared while this fetch was in flight.');
+      return accessory.locationHistory;
+    }
     for (var i = 0; i < decryptedReports.length; i++) {
       FindMyLocationReport report = decryptedReports[i];
       if (report.longitude!.abs() <= 180 && report.latitude!.abs() <= 90) {
@@ -357,13 +381,18 @@ class AccessoryRegistry extends ChangeNotifier {
   }
 
   /// Clears only the recorded location history of [accessory] — unlike
-  /// [deleteData], this leaves the accessory's current known location,
-  /// battery status and publish date untouched, so it still shows up
-  /// correctly on the main map. Only the history trail (and its
-  /// persisted storage entry) is wiped.
+  /// [deleteData], this leaves the accessory's current known location
+  /// and battery status untouched, so it still shows up correctly on
+  /// the main map. The history trail (and its persisted storage entry)
+  /// AND the "last seen" date shown under the tag on the Map tab are
+  /// both wiped — that date is derived from history, so it would be
+  /// misleading to leave it showing after the history itself is gone.
   Future<void> clearHistory(Accessory accessory) async {
     accessory.locationHistory.clear();
+    accessory.historyGeneration++;
+    accessory.datePublished = DateTime(1970);
     await _removeHistoryEntry(accessory);
+    _storeAccessories();
     notifyListeners();
   }
 
@@ -374,6 +403,7 @@ class AccessoryRegistry extends ChangeNotifier {
     accessory.datePublished = DateTime(1970);
     accessory.place = Future.value(null);
     accessory.locationHistory.clear();
+    accessory.historyGeneration++;
     _removeHistoryEntry(accessory);
     _storeAccessories();
     notifyListeners();
