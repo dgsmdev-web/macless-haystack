@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:macless_haystack/accessory/accessory_dto.dart';
 import 'package:macless_haystack/accessory/accessory_model.dart';
 import 'package:macless_haystack/accessory/accessory_registry.dart';
+import 'package:macless_haystack/item_management/diagnostic_report.dart';
 import 'package:macless_haystack/item_management/kml_export.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -67,6 +68,18 @@ class ItemExportMenu extends StatelessWidget {
                   },
                 ),
                 ListTile(
+                  title: const Text('Diagnostic Report (JSON)'),
+                  subtitle: const Text(
+                      'Asks Apple for each key of this tag separately and saves how many reports came back'),
+                  onTap: () {
+                    // Same reasoning as Delete below: close the sheet
+                    // first, then work with the OUTER page context,
+                    // because this sheet's context dies with the sheet.
+                    Navigator.pop(context);
+                    _runDiagnosticReport(outerContext, accessory);
+                  },
+                ),
+                ListTile(
                   title: const Text(
                     'Delete All History',
                     style: TextStyle(color: Colors.red),
@@ -92,6 +105,47 @@ class ItemExportMenu extends StatelessWidget {
             ),
           );
         });
+  }
+
+  /// Collects the diagnostic report while showing a blocking spinner —
+  /// it makes one network request per key plus one combined request, so
+  /// it can take a while and must not look like the tap did nothing.
+  Future<void> _runDiagnosticReport(
+      BuildContext context, Accessory accessory) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return const AlertDialog(
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(
+                  child: Text('Collecting diagnostic report...')),
+            ],
+          ),
+        );
+      },
+    );
+
+    String? error;
+    try {
+      await exportDiagnosticReport(accessory);
+    } catch (e) {
+      error = e.toString();
+    }
+
+    if (context.mounted) {
+      // Close the spinner dialog.
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    if (error != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Diagnostic report failed: $error')),
+      );
+    }
   }
 
   /// Shows a confirmation dialog before permanently wiping [accessory]'s
