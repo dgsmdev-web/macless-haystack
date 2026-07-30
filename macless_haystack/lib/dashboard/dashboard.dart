@@ -1,5 +1,6 @@
 
 import 'dart:async';
+import 'dart:math' show Random;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -31,6 +32,50 @@ class Dashboard extends StatefulWidget {
 }
 
 class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
+  /// Среднее время между автоматическими обновлениями, в минутах.
+  ///
+  /// Замерено: Apple хранит 8 отчётов на ключ, что при обычной городской
+  /// активности покрывает около часа. Пятнадцать минут дают четырёхкратный
+  /// запас — его хватает и когда меток вокруг много и отчёты идут втрое
+  /// чаще, то есть буфер живёт всего минут двадцать.
+  static const int refreshIntervalMinutes = 15;
+
+  /// Разброс интервала, доля от него. 0.2 означает 15 минут ± 3.
+  ///
+  /// Разброс здесь не для красоты. Раньше периодического таймера в
+  /// приложении не было СОЗНАТЕЛЬНО: все обновления происходили только
+  /// потому, что человек что-то сделал — открыл приложение, вернулся в
+  /// него, нажал кнопку. Запросы, приходящие ровно каждые 15 минут
+  /// круглосуточно, ни на что человеческое не похожи и сами по себе
+  /// являются признаком автоматизации. Случайный разброс возвращает
+  /// картину к правдоподобной, почти ничего не стоя.
+  static const double refreshJitterFraction = 0.2;
+
+  Timer? _refreshTimer;
+  final Random _random = Random();
+  bool _appInForeground = true;
+
+  /// Планирует следующее обновление со случайным отклонением.
+  ///
+  /// Одноразовый таймер, перевзводимый после каждого срабатывания, а не
+  /// Timer.periodic: только так интервал получается разным каждый раз.
+  void _scheduleNextRefresh() {
+    _refreshTimer?.cancel();
+    final base = refreshIntervalMinutes * 60;
+    final spread = (base * refreshJitterFraction).round();
+    final seconds = base - spread + _random.nextInt(spread * 2 + 1);
+    _refreshTimer = Timer(Duration(seconds: seconds), () {
+      // Таймеры Dart не работают, пока приложение свёрнуто, но на всякий
+      // случай проверяем: обновление имеет смысл только на переднем плане.
+      if (mounted && _appInForeground) {
+        loadLocationUpdates(null, silent: true);
+      }
+      if (mounted) {
+        _scheduleNextRefresh();
+      }
+    });
+  }
+
   /// A list of the tabs displayed in the bottom tab bar.
   late final List<Map<String, dynamic>> _tabs = [
     {
@@ -70,13 +115,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     if (!locationPreferenceKnown || locationAccessWanted) {
       locationModel.requestLocationUpdates();
     }
-    // Load new location reports on app start. There is deliberately NO
-    // periodic timer anymore — refreshes only happen: on a true cold
-    // start (here), when returning to the app from the background (see
-    // didChangeAppLifecycleState below), and on the manual refresh
-    // button. All three only ever fire because a person actually did
-    // something (opened the app, switched back to it, or tapped
-    // refresh) — never on a fixed, predictable interval.
+    // Load new location reports on app start. Обновления происходят:
+    // при холодном старте (здесь), при возвращении в приложение из
+    // фона (см. didChangeAppLifecycleState ниже), по кнопке обновления
+    // и — с этой версии — по таймеру с разбросом, пока приложение
+    // открыто.
+    //
+    // Таймер добавлен потому, что Apple вытесняет отчёты примерно через
+    // час, и без него история рвётся всякий раз, когда приложение долго
+    // не трогали. Интервал НЕ фиксированный: см. refreshJitterFraction
+    // выше — прежнее решение отказаться от ровного периода было верным
+    // по сути, и разброс его сохраняет.
     //
     // This resume-on-return listener was temporarily removed for a
     // diagnostic test while chasing the map freeze — confirmed via a
@@ -86,10 +135,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         defaultValue: true)!) {
       loadLocationUpdates(null);
     }
+    _scheduleNextRefresh();
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -103,7 +154,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     // is the only thing that refreshes on a normal "switched back to
     // the app" — deliberately NOT a timer, just a one-off silent fetch
     // exactly when a person actually returns to the app.
+    _appInForeground = state == AppLifecycleState.resumed;
     if (state == AppLifecycleState.resumed) {
+      // Вернулись в приложение — обновляем сразу и отсчитываем интервал
+      // заново, чтобы два обновления не пришли подряд.
+      _scheduleNextRefresh();
       var accessoryRegistry =
           Provider.of<AccessoryRegistry>(context, listen: false);
       if (accessoryRegistry.suppressResumeRefresh) {
