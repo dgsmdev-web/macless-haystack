@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' show cos, pi;
 
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
@@ -42,6 +43,30 @@ class Accessory {
   static final logger = Logger(
     printer: PrettyPrinter(methodCount: 0),
   );
+
+  /// Порог склейки соседних отчётов в одну точку истории, В МЕТРАХ.
+  ///
+  /// Если новый отчёт лежит ближе этого расстояния к уже существующей
+  /// точке, новая точка на карте НЕ создаётся — у существующей лишь
+  /// продлевается время. Слишком большой порог прячет реальное
+  /// количество отчётов и превращает поездку в «телепортацию».
+  ///
+  ///   110 м — значение оригинального проекта (было зашито как 0.001°,
+  ///           что на широте Софии давало 110 м по широте и лишь 81 м
+  ///           по долготе — порог был несимметричным)
+  ///    55 м — текущее значение, половина от исходного
+  ///
+  /// Менять только здесь. Пересчёт в градусы делается ниже с учётом
+  /// широты, поэтому в метрах порог одинаков и по широте, и по долготе.
+  ///
+  /// Важно: сравнение идёт отдельно по широте и отдельно по долготе,
+  /// то есть область склейки — квадрат, а не круг. По диагонали
+  /// фактический порог получается примерно в 1,41 раза больше
+  /// номинального. Так же было и в оригинале.
+  static const double mergeThresholdMeters = 55;
+
+  /// Длина одного градуса широты в метрах. Практически постоянна.
+  static const double _metersPerDegreeLatitude = 111320;
 
   /// The ID of the accessory key.
   String id;
@@ -308,10 +333,22 @@ class Accessory {
     if (closest != null) {
       logger.d(
           'Found closest with ts ${closest.start} - ${closest.end} and ${closest.location.longitude} - ${closest.location.latitude}');
-      bool latIsClose =
-          (closest.location.latitude - report.latitude!).abs() <= 0.001;
+      // Порог задан в метрах и переводится в градусы здесь. По широте
+      // градус всегда примерно одинаков; по долготе он сжимается к
+      // полюсам, поэтому делится на косинус широты — иначе на широте
+      // Софии «55 метров» по долготе на деле означали бы около 40.
+      final double latThresholdDegrees =
+          mergeThresholdMeters / _metersPerDegreeLatitude;
+      final double cosLat = cos(closest.location.latitude * pi / 180).abs();
+      final double lonThresholdDegrees = cosLat < 0.01
+          ? 180 // у самих полюсов долгота смысла не имеет
+          : latThresholdDegrees / cosLat;
+
+      bool latIsClose = (closest.location.latitude - report.latitude!).abs() <=
+          latThresholdDegrees;
       bool lonIsClose =
-          (closest.location.longitude - report.longitude!).abs() <= 0.001;
+          (closest.location.longitude - report.longitude!).abs() <=
+              lonThresholdDegrees;
       if (latIsClose && lonIsClose) {
         //similar
         if (reportDate.isAfter(closest.end)) {
