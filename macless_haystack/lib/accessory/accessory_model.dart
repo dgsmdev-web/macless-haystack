@@ -302,31 +302,32 @@ class Accessory {
     logger.d(
         'Adding report with timestamp $reportDate and ${report.longitude} - ${report.latitude}');
 
+    // Ищем запись, ближайшую по времени.
+    //
+    // Прежний вариант этого поиска был устроен так, что в решающем условии
+    // сравнение шло с locationHistory[0] — всегда с нулевой записью, — а
+    // присваивалась при этом currentPair, текущая в цикле. При истории
+    // длиннее одной записи опора выбиралась неверно. Дальше, если координата
+    // случайно попадала в порог склейки, конец выбранной записи растягивался
+    // до времени нового отчёта, и получившийся интервал накрывал собой
+    // соседние записи. В экспорте это видно как отрицательные разрывы:
+    // следующая точка начинается раньше, чем заканчивается предыдущая.
     Pair? closest;
-    //Find the closest history report by time
-    for (int i = 0; i < locationHistory.length; i++) {
-      Pair currentPair = locationHistory[i];
-      //If it is between the first pair, we have the closest one and will finish
-      if (reportDate.isAtSameMomentAs(currentPair.start) ||
-          reportDate.isAtSameMomentAs(currentPair.end) ||
-          (reportDate.isAfter(locationHistory[0].start) &&
-              reportDate.isBefore(locationHistory[0].end))) {
-        closest = currentPair;
-        break;
+    Duration? bestDistance;
+    for (final Pair pair in locationHistory) {
+      // Расстояние во времени от отчёта до интервала записи.
+      // Ноль, если отчёт попадает внутрь интервала.
+      final Duration distance;
+      if (reportDate.isBefore(pair.start)) {
+        distance = pair.start.difference(reportDate);
+      } else if (reportDate.isAfter(pair.end)) {
+        distance = reportDate.difference(pair.end);
+      } else {
+        distance = Duration.zero;
       }
-      //closest already set, but is earlier than current one
-      if (reportDate.isAtSameMomentAs(currentPair.start) ||
-          reportDate.isAtSameMomentAs(currentPair.end) ||
-          (closest != null &&
-              currentPair.start.isBefore(reportDate) &&
-              reportDate.isAfter(closest.start))) {
-        closest = currentPair;
-        continue;
-      }
-      if (reportDate.isAtSameMomentAs(currentPair.start) ||
-          (closest == null && currentPair.start.isBefore(reportDate))) {
-        closest = currentPair;
-        continue;
+      if (bestDistance == null || distance < bestDistance) {
+        bestDistance = distance;
+        closest = pair;
       }
     }
 
@@ -352,8 +353,25 @@ class Accessory {
       if (latIsClose && lonIsClose) {
         //similar
         if (reportDate.isAfter(closest.end)) {
-          logger.d('Changing closest end date to $reportDate');
-          closest.end = reportDate;
+          // Подстраховка от перекрытий: не растягиваем запись поверх других.
+          // Если между текущим концом и новым отчётом уже начинается чья-то
+          // запись, растягивание накрыло бы её интервалом. В этом случае
+          // заводим отдельную точку, даже если координата близкая.
+          final Pair anchor = closest;
+          final bool wouldOverlap = locationHistory.any((p) =>
+              !identical(p, anchor) &&
+              p.start.isAfter(anchor.end) &&
+              p.start.isBefore(reportDate));
+          if (wouldOverlap) {
+            logger.d('Not extending: another entry lies in between.');
+            locationHistory.add(Pair(
+                LatLng(report.latitude!, report.longitude!),
+                reportDate,
+                reportDate));
+          } else {
+            logger.d('Changing closest end date to $reportDate');
+            closest.end = reportDate;
+          }
         } else {
           logger.d('Date not changed, because is before current date.');
         }
